@@ -1,0 +1,5 @@
+<launch>
+  <arg name="stage" default="1"/>
+  <param name="stage_number"  value="$(arg stage)"/>
+  <node pkg="rl_nav" type="turtlebot3_dqn.py" name="turtlebot3_dqn" output="screen" />
+</launch>
