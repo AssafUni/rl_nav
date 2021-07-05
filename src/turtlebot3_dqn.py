@@ -201,12 +201,12 @@ class ReinforceAgent():
 
         if self.load_model and self.load_episode > 0:
             path = self.dirPath + str(self.load_episode) + ".weights"
-            with open(path, 'wb') as file:
+            with open(path, 'rb') as file:
                 weights = pickle.load(file)   
             self.model.set_weights(weights)
         elif self.load_model:
             path = self.lastDirPath + "_last.weights"
-            with open(path, 'wb') as file:
+            with open(path, 'rb') as file:
                 weights = pickle.load(file)   
             self.model.set_weights(weights)            
 
