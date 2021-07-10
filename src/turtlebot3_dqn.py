@@ -152,16 +152,16 @@ main_nn = None
 target_nn = None
 
 @tf.function
-def train_step(costmap, goal_vels, action, reward, next_costmap, next_goal_vel, done):
-  next_qs_main = main_nn(next_costmap, next_goal_vel)
+def train_step(costmaps, goal_vels, actions, rewards, next_costmaps, next_goal_vel, dones):
+  next_qs_main = main_nn(next_costmaps, next_goal_vel)
   next_qs_argmax = tf.argmax(next_qs_main, axis=-1)
   next_action_mask = tf.one_hot(next_qs_argmax, num_actions)
-  next_qs_target = target_nn(next_costmap, next_goal_vel)
+  next_qs_target = target_nn(next_costmaps, next_goal_vel)
   masked_next_qs = tf.reduce_sum(next_action_mask * next_qs_target, axis=-1)
-  target = reward + (1. - done) * discount * masked_next_qs
+  target = rewards + (1. - dones) * discount * masked_next_qs
   with tf.GradientTape() as tape:
-    qs = main_nn(costmap, goal_vel)
-    action_mask = tf.one_hot(action, num_actions)
+    qs = main_nn(costmaps, goal_vels)
+    action_mask = tf.one_hot(actions, num_actions)
     masked_qs = tf.reduce_sum(action_mask * qs, axis=-1)
     loss = loss_fn(target, masked_qs)
   grads = tape.gradient(loss, main_nn.trainable_variables)
@@ -190,49 +190,37 @@ class ReinforceAgent():
         self.epsilon = 1.0
         self.epsilon_decay = 0.99
         self.epsilon_min = 0.05
-        self.batch_size = 64
-        self.train_start = 64
+        self.batch_size = 1024
+        self.train_start = 1024
         self.memory = deque(maxlen= 2 * (10 ** 5))
-        self.costmapStep = 3
-        self.costmapQueue = deque(maxlen=self.costmapStep * 3 + 1)
-        
+
         self.model = self.buildModel()
         self.target_model = self.buildModel()
 
+        self.updateTargetModel()
+
+        if self.load_model and self.load_episode > 0:
+            path = self.dirPath + str(self.load_episode) + ".weights"
+            with open(path, 'rb') as file:
+                weights = pickle.load(file)   
+            self.model.set_weights(weights)
+        elif self.load_model:
+            path = self.lastDirPath + "_last.weights"
+            with open(path, 'rb') as file:
+                weights = pickle.load(file)   
+            self.model.set_weights(weights)            
+
+
     def preprocessCostmap(self, costmap):
-        self.costmapQueue.append(costmap)
-        if len(self.costmapQueue) > self.costmapStep * 3:
-            newQueue = deque(maxlen=10)            
-            costmap_a = self.costmapQueue.pop()
-            newQueue.append(costmap_a)
-            counter = self.costmapStep
-            while counter > 0:
-                newQueue.append(self.costmapQueue.pop())
-                counter = counter - 1
-            costmap_b = self.costmapQueue.pop()
-            newQueue.append(costmap_b)
-            counter = self.costmapStep
-            while counter > 0:
-                newQueue.append(self.costmapQueue.pop())
-                counter = counter - 1
-            costmap_c =  self.costmapQueue.pop()
-            newQueue.append(costmap_c)
-            newQueue.reverse()
-            self.costmapQueue = newQueue
-        else:
-            costmap_a = costmap
-            costmap_b = costmap
-            costmap_c = costmap
-  
-        costmap_a = np.asarray(costmap_a).reshape((60, 60))
-        costmap_b = np.asarray(costmap_b).reshape((60, 60))
-        costmap_c = np.asarray(costmap_c).reshape((60, 60))
+        costmap_a = np.asarray(costmap).reshape((60, 60))
+        costmap_b = np.asarray(costmap).reshape((60, 60))
+        costmap_c = np.asarray(costmap).reshape((60, 60))
         costmaps = np.zeros((3, 60, 60))
         costmaps[0] = costmap_a
         costmaps[1] = costmap_b
-        costmaps[2] = costmap_c
+        costmaps[2] = costmap_c 
 
-        return np.expand_dims(costmaps, axis=0)
+        return np.expand_dims(costmaps, axis=0)  
 
     def preprocessGoalAndVelocities(self, goal, velocities):
         goal_vector = np.asarray(goal)
@@ -242,6 +230,12 @@ class ReinforceAgent():
 
     def buildModel(self):
         return DuelingDQN(self.action_size)
+
+    def getQvalue(self, reward, next_target, done):
+        if done:
+            return reward
+        else:
+            return reward + self.discount_factor * np.amax(next_target)
 
     def updateTargetModel(self):
         self.target_model.set_weights(self.model.get_weights())
@@ -257,41 +251,6 @@ class ReinforceAgent():
     def appendMemory(self, costmap, goal_vel, action, reward,  next_costmap, next_goal_vel, done):
         self.memory.append((costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done))
 
-    def initNetwork(self):
-        global main_nn
-        global target_nn
-
-        costmap = self.memory[0][0]
-        goal_vel = self.memory[0][1]
-        action = self.memory[0][2]
-        reward = self.memory[0][3]
-        next_costmap = self.memory[0][4]
-        next_goal_vel = self.memory[0][5]
-        done = self.memory[0][6]
-    
-        main_nn = self.model
-        target_nn = self.target_model
-
-        train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done) 
-
-        main_nn = self.target_model
-        target_nn = self.model
-
-        train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done)             
-
-        if self.load_model and self.load_episode > 0:
-            path = self.dirPath + str(self.load_episode) + ".weights"
-            with open(path, 'rb') as file:
-                weights = pickle.load(file)   
-            self.model.set_weights(weights)
-            self.target_model.set_weights(weights)
-        elif self.load_model:
-            path = self.lastDirPath + "_last.weights"
-            with open(path, 'rb') as file:
-                weights = pickle.load(file)   
-            self.model.set_weights(weights)   
-            self.target_model.set_weights(weights)                    
-
     def trainModel(self, target=False):
         global main_nn
         global target_nn
@@ -300,18 +259,18 @@ class ReinforceAgent():
         losses = []
 
         for i in range(self.batch_size):
-            costmap = mini_batch[i][0]
+            costmaps = mini_batch[i][0]
             goal_vel = mini_batch[i][1]
-            action = mini_batch[i][2]
-            reward = mini_batch[i][3]
-            next_costmap = mini_batch[i][4]
+            actions = mini_batch[i][2]
+            rewards = mini_batch[i][3]
+            next_costmaps = mini_batch[i][4]
             next_goal_vel = mini_batch[i][5]
-            done = mini_batch[i][6]
+            dones = mini_batch[i][6]
      
             main_nn = self.model
             target_nn = self.target_model
 
-            loss = train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done) 
+            loss = train_step(costmaps, goal_vel, actions, rewards, next_costmaps, next_goal_vel, dones)
             losses.append(loss)
         
         return np.mean(losses)
@@ -361,10 +320,7 @@ if __name__ == '__main__':
             get_action.data = [action, score, reward]
             pub_get_action.publish(get_action)
 
-            if e == 1 and t == 1:
-                agent.initNetwork()
-
-            if t % 100 == 0:
+            if e % 100 == 0:
                 last_weights_path = agent.dirPath + "_last.weights"
                 weights_path = agent.dirPath + str(e) + ".weights"
                 json_path = agent.dirPath + str(e) + '.json'
@@ -374,8 +330,8 @@ if __name__ == '__main__':
                 with open(last_weights_path, 'wb') as outfile:
                     weights = agent.model.get_weights()
                     pickle.dump(weights, outfile)                                   
-                # with open(json_path, 'w') as outfile:
-                #     json.dump(param_dictionary, outfile)
+                with open(json_path, 'w') as outfile:
+                    json.dump(param_dictionary, outfile)
 
             if t >= 500:
                 rospy.loginfo("Time out!!")
