@@ -104,12 +104,13 @@ class Env():
              
     def step(self, action):
         max_angular_vel = 1.5
+        lin_vel = 0.15
         ang_vel = ((self.action_size - 1)/2 - action) * max_angular_vel * 0.5
 
         rate = rospy.Rate(4)
 
         vel_cmd = Twist()
-        vel_cmd.linear.x = 0.15
+        vel_cmd.linear.x = lin_vel
         vel_cmd.angular.z = ang_vel
         self.pub_cmd_vel.publish(vel_cmd)
 
@@ -127,7 +128,7 @@ class Env():
         reward, done = self.setReward(data_scan)
         self.goal_distance = self.getGoalDistace()
 
-        return np.asarray(data_costmap.data), (self.goal_x - self.position.x, self.goal_y - self.position.y), (vel_cmd.linear.x, vel_cmd.angular.z), reward, done
+        return np.asarray(data_costmap.data), (self.goal_x - self.position.x, self.goal_y - self.position.y), (lin_vel, ang_vel), reward, done
 
     def reset(self):
         rospy.loginfo("Reseting simulation...")
