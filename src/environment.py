@@ -104,7 +104,7 @@ class Env():
             rg = 500
             self.pub_cmd_vel.publish(Twist())
             self.goal_x, self.goal_y = self.respawn_goal.getPosition(True, delete=True)
-            return rg + rc + rs, False
+            return rg + rc + rs, True
         
         rg = epsilon * (self.goal_distance - current_distance)
         
