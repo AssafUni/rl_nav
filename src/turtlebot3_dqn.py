@@ -170,7 +170,7 @@ def train_step(costmap, goal_vels, action, reward, next_costmap, next_goal_vel, 
 
 
 class ReinforceAgent():
-    def __init__(self, action_size, load_model=False, load_episode=0):
+    def __init__(self, action_size, load_model=True, load_episode=80):
         self.pub_result = rospy.Publisher('result', Float32MultiArray, queue_size=5)
         self.dirPath = os.path.dirname(os.path.realpath(__file__))
         self.stage = rospy.get_param('/stage_number')
@@ -183,8 +183,7 @@ class ReinforceAgent():
         self.load_model = load_model or stage_int > 1
         self.load_episode = load_episode
         self.action_size = action_size
-        self.episode_step = 300
-        self.target_update = 100
+        self.episode_step = 500
         self.discount_factor = discount
         self.learning_rate = 5 * (10 ** -4)
         self.epsilon = 1.0
@@ -261,6 +260,8 @@ class ReinforceAgent():
         global main_nn
         global target_nn
 
+	rospy.loginfo('Initializing network...')
+
         costmap = self.memory[0][0]
         goal_vel = self.memory[0][1]
         action = self.memory[0][2]
@@ -280,19 +281,33 @@ class ReinforceAgent():
         train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done)             
 
         if self.load_model and self.load_episode > 0:
+	    rospy.loginfo('Loading saved model...')
             path = self.dirPath + str(self.load_episode) + ".weights"
             with open(path, 'rb') as file:
                 weights = pickle.load(file)   
             self.model.set_weights(weights)
             self.target_model.set_weights(weights)
+
+            with open(self.dirPath + str(self.load_episode) + '.json') as outfile:
+                param = json.load(outfile)
+                self.epsilon = param.get('epsilon')
+
+	    self.load_model = False
         elif self.load_model:
+            rospy.loginfo('Loading last saved model...')
             path = self.lastDirPath + "_last.weights"
             with open(path, 'rb') as file:
                 weights = pickle.load(file)   
             self.model.set_weights(weights)   
-            self.target_model.set_weights(weights)                    
+            self.target_model.set_weights(weights) 
 
-    def trainModel(self, target=False):
+            with open(self.lastDirPath + "_last.json") as outfile:
+                param = json.load(outfile)
+                self.epsilon = param.get('epsilon')                   
+		
+	    self.load_model = False
+
+    def trainModel(self):
         global main_nn
         global target_nn
         mini_batch = random.sample(self.memory, self.batch_size)
@@ -350,23 +365,25 @@ if __name__ == '__main__':
 
             agent.appendMemory(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done)
 
-            if len(agent.memory) >= agent.train_start:
-                if global_step <= agent.target_update:
-                    loss = agent.trainModel()                  
-                else:
-                    loss = agent.trainModel(True)                   
-
+            if len(agent.memory) >= agent.train_start:                
+                loss = agent.trainModel()                  
+                                                  
             score += reward
             costmap, goal_vel = next_costmap, next_goal_vel
             get_action.data = [action, score, reward]
             pub_get_action.publish(get_action)
 
-            if e == 1 and t == 1:
+            if agent.load_model or (e == 1 and t == 1):
                 agent.initNetwork()
 
-            if t % 100 == 0:
+                param_keys = ['epsilon']
+                param_values = [agent.epsilon]
+                param_dictionary = dict(zip(param_keys, param_values))
+		
+            if e % 10 == 0:
                 last_weights_path = agent.dirPath + "_last.weights"
                 weights_path = agent.dirPath + str(e) + ".weights"
+		last_json_path = agent.dirPath + "_last.json"
                 json_path = agent.dirPath + str(e) + '.json'
                 with open(weights_path, 'wb') as outfile:
                     weights = agent.model.get_weights()
@@ -374,10 +391,12 @@ if __name__ == '__main__':
                 with open(last_weights_path, 'wb') as outfile:
                     weights = agent.model.get_weights()
                     pickle.dump(weights, outfile)                                   
-                # with open(json_path, 'w') as outfile:
-                #     json.dump(param_dictionary, outfile)
+                with open(json_path, 'w') as outfile:
+                    json.dump(param_dictionary, outfile)
+                with open(last_json_path, 'w') as outfile:
+                    json.dump(param_dictionary, outfile)
 
-            if t >= 500:
+            if t >= agent.episode_step - 1:
                 rospy.loginfo("Time out!!")
                 done = True
 
@@ -389,6 +408,7 @@ if __name__ == '__main__':
                               loss, e, t, score, len(agent.memory), agent.epsilon, h, m, s)                
 
             if done:
+		rospy.loginfo("DONE! UPDATE TARGET NETWORK")
                 result.data = [score, np.max(agent.q_value)]
                 pub_result.publish(result)
                 agent.updateTargetModel()
@@ -405,8 +425,8 @@ if __name__ == '__main__':
                 break
 
             global_step += 1
-            if global_step % agent.target_update == 0:
-                rospy.loginfo("UPDATE TARGET NETWORK")
+            # if global_step % agent.target_update == 0:
+            #     rospy.loginfo("UPDATE TARGET NETWORK")
               
 
         if agent.epsilon > agent.epsilon_min:

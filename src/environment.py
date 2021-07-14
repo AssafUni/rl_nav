@@ -114,14 +114,14 @@ class Env():
         vel_cmd.angular.z = ang_vel
         self.pub_cmd_vel.publish(vel_cmd)
 
-        rate.sleep()
+        # rate.sleep()
 
-        vel_cmd = Twist()
-        vel_cmd.linear.x = 0
-        vel_cmd.angular.z = 0
-        self.pub_cmd_vel.publish(vel_cmd)
+        # vel_cmd = Twist()
+        # vel_cmd.linear.x = 0
+        # vel_cmd.angular.z = 0
+        # self.pub_cmd_vel.publish(vel_cmd)
 
-        rate.sleep()     
+        # rate.sleep()     
 
 
         data_scan, data_costmap = self.getState()           
