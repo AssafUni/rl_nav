@@ -152,7 +152,7 @@ main_nn = None
 target_nn = None
 
 @tf.function
-def train_step(costmap, goal_vels, action, reward, next_costmap, next_goal_vel, done):
+def train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done):
   next_qs_main = main_nn(next_costmap, next_goal_vel)
   next_qs_argmax = tf.argmax(next_qs_main, axis=-1)
   next_action_mask = tf.one_hot(next_qs_argmax, num_actions)
@@ -170,11 +170,16 @@ def train_step(costmap, goal_vels, action, reward, next_costmap, next_goal_vel, 
 
 
 class ReinforceAgent():
-    def __init__(self, action_size, load_model=True, load_episode=80):
+    def __init__(self, action_size):
         self.pub_result = rospy.Publisher('result', Float32MultiArray, queue_size=5)
         self.dirPath = os.path.dirname(os.path.realpath(__file__))
         self.stage = rospy.get_param('/stage_number')
         stage_int = int(self.stage)
+        load_model = rospy.get_param('/load_model')
+        load_model = int(load_model)
+        load_model = load_model == 1
+        load_episode = rospy.get_param('/load_episode')
+        load_episode = int(load_episode)                
         if stage_int > 1:
             self.lastDirPath = self.dirPath.replace('rl_nav/src', 'rl_nav/save_model/stage_' + str(stage_int - 1) + "_")
         self.dirPath = self.dirPath.replace('rl_nav/src', 'rl_nav/save_model/stage_' + str(self.stage) + "_")
@@ -260,7 +265,7 @@ class ReinforceAgent():
         global main_nn
         global target_nn
 
-	rospy.loginfo('Initializing network...')
+        rospy.loginfo('Initializing network...')
 
         costmap = self.memory[0][0]
         goal_vel = self.memory[0][1]
@@ -281,7 +286,7 @@ class ReinforceAgent():
         train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done)             
 
         if self.load_model and self.load_episode > 0:
-	    rospy.loginfo('Loading saved model...')
+            rospy.loginfo('Loading saved model...')
             path = self.dirPath + str(self.load_episode) + ".weights"
             with open(path, 'rb') as file:
                 weights = pickle.load(file)   
@@ -331,8 +336,44 @@ class ReinforceAgent():
         
         return np.mean(losses)
 
-if __name__ == '__main__':    
-    rospy.init_node('turtlebot3_dqn')
+class Agent():
+    def __init__(self, action_size):
+        self.r_a = ReinforceAgent(action_size)
+        self.dirPath = os.path.dirname(os.path.realpath(__file__))
+        self.stage = rospy.get_param('/stage_number')
+        stage_int = int(self.stage)
+        self.dirPath = self.dirPath.replace('rl_nav/src', 'rl_nav/save_model/stage_' + str(self.stage) + "_")
+
+        self.model = self.r_a.buildModel()
+
+    def initNetwork(self, costmap, goal_dist, velocities):
+        global main_nn
+        global target_nn
+
+        costmap = self.r_a.preprocessCostmap(costmap)
+        goal_vel = self.r_a.preprocessGoalAndVelocities(goal_dist, velocities)
+
+        rospy.loginfo('Initializing network...')
+
+        main_nn = self.model
+        target_nn = self.model
+
+        train_step(costmap, goal_vel, 0, 0, costmap, goal_vel, False)            
+
+        rospy.loginfo('Loading last saved model...')
+        path = self.dirPath + "_last.weights"
+        with open(path, 'rb') as file:
+            weights = pickle.load(file)   
+        self.model.set_weights(weights)   
+
+    def getAction(self, costmap, goal_dist, velocities):
+        costmap = self.r_a.preprocessCostmap(costmap)
+        goal_vel = self.r_a.preprocessGoalAndVelocities(goal_dist, velocities)        
+        self.q_value = self.model(costmap, goal_vel)
+        return np.argmax(self.q_value)  
+      
+
+def train():
     pub_result = rospy.Publisher('result', Float32MultiArray, queue_size=5)
     pub_get_action = rospy.Publisher('get_action', Float32MultiArray, queue_size=5)
     result = Float32MultiArray()
@@ -383,7 +424,7 @@ if __name__ == '__main__':
             if e % 10 == 0:
                 last_weights_path = agent.dirPath + "_last.weights"
                 weights_path = agent.dirPath + str(e) + ".weights"
-		last_json_path = agent.dirPath + "_last.json"
+                last_json_path = agent.dirPath + "_last.json"
                 json_path = agent.dirPath + str(e) + '.json'
                 with open(weights_path, 'wb') as outfile:
                     weights = agent.model.get_weights()
@@ -408,7 +449,7 @@ if __name__ == '__main__':
                               loss, e, t, score, len(agent.memory), agent.epsilon, h, m, s)                
 
             if done:
-		rospy.loginfo("DONE! UPDATE TARGET NETWORK")
+                rospy.loginfo("DONE! UPDATE TARGET NETWORK")
                 result.data = [score, np.max(agent.q_value)]
                 pub_result.publish(result)
                 agent.updateTargetModel()
@@ -431,3 +472,36 @@ if __name__ == '__main__':
 
         if agent.epsilon > agent.epsilon_min:
             agent.epsilon *= agent.epsilon_decay
+
+def run():
+    action_size = num_actions
+    agent = Agent(action_size)
+    env = Env(action_size)
+    costmap, goal_dist, velocities = env.reset()
+    agent.initNetwork(costmap, goal_dist, velocities)
+    
+    done = False
+    while not rospy.is_shutdown():
+        rospy.loginfo("Running...")
+        action = agent.getAction(costmap, goal_dist, velocities)
+        costmap, goal_dist, velocities, reward, done = env.step(action)
+
+        if done:
+            rospy.loginfo("DONE!")
+            done = False
+            costmap, goal_dist, velocities = env.reset()            
+
+
+if __name__ == '__main__':    
+    rospy.init_node('turtlebot3_dqn')
+    train_param = rospy.get_param('/train')
+    train_param = int(train_param)
+    train_param = train_param == 1
+    if train_param:
+        rospy.loginfo("Running training...")
+        train()
+    else:
+        rospy.loginfo("Running trained agent...")
+        run()
+
+    
