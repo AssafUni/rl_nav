@@ -28,6 +28,14 @@ class Env():
         self.pause_proxy = rospy.ServiceProxy('gazebo/pause_physics', Empty)
         self.respawn_goal = Respawn()
 
+    def getPosition(self):
+        return self.position.x, self.position.y
+
+    def getGoal(self):
+        goal_distance = round(math.hypot(self.goal_x - self.position.x, self.goal_y - self.position.y), 2)
+
+        return self.goal_x, self.goal_y 
+
     def getGoalDistace(self):
         goal_distance = round(math.hypot(self.goal_x - self.position.x, self.goal_y - self.position.y), 2)
 

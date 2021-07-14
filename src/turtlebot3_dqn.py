@@ -7,9 +7,12 @@ import numpy as np
 import random
 import time
 import sys
+import math
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from collections import deque
 from std_msgs.msg import Float32MultiArray
+from geometry_msgs.msg import PoseWithCovarianceStamped
+from nav_msgs.srv import GetPlan, GetPlanRequest
 from environment import Env
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
@@ -342,6 +345,7 @@ class Agent():
         self.dirPath = os.path.dirname(os.path.realpath(__file__))
         self.stage = rospy.get_param('/stage_number')
         stage_int = int(self.stage)
+        self.set_inital_pose(stage_int)
         self.dirPath = self.dirPath.replace('rl_nav/src', 'rl_nav/save_model/stage_' + str(self.stage) + "_")
 
         self.model = self.r_a.buildModel()
@@ -370,7 +374,80 @@ class Agent():
         costmap = self.r_a.preprocessCostmap(costmap)
         goal_vel = self.r_a.preprocessGoalAndVelocities(goal_dist, velocities)        
         self.q_value = self.model(costmap, goal_vel)
-        return np.argmax(self.q_value)  
+        return np.argmax(self.q_value)
+
+
+    def set_inital_pose(self, stage):
+        pub_pose = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=1)
+
+        if stage == 1 or stage == 2 or stage == 3:
+            p = PoseWithCovarianceStamped()
+            p.header.stamp = rospy.Time.now()
+            p.header.frame_id = "/map"
+            p.pose.pose.position.x = 0.0107860857105
+            p.pose.pose.position.y = 0.0073664161539
+            p.pose.pose.position.z = 0.0
+            p.pose.pose.orientation.x = 0.0
+            p.pose.pose.orientation.y = 0.0
+            p.pose.pose.orientation.z = -0.00327164459341
+            p.pose.pose.orientation.w = 0.999994648157
+            p.pose.covariance = [0.0020786870895943186, -0.00024191447863735466, 0.0, 0.0, 0.0, 0.0, -0.00024191447863735471, 0.001531162405457102, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.001960197517311554]
+        else:
+            p = PoseWithCovarianceStamped()
+            p.header.stamp = rospy.Time.now()
+            p.header.frame_id = "/map"
+            p.pose.pose.position.x = -0.70409776546
+            p.pose.pose.position.y = 0.00666752422603
+            p.pose.pose.position.z = 0.0
+            p.pose.pose.orientation.x = 0.0
+            p.pose.pose.orientation.y = 0.0
+            p.pose.pose.orientation.z = -0.00327164459341
+            p.pose.pose.orientation.w = 0.999994648157
+            p.pose.covariance = [0.0020786870895943186, -0.00024191447863735466, 0.0, 0.0, 0.0, 0.0, -0.00024191447863735471, 0.001531162405457102, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.001960197517311554]
+
+        rate = rospy.Rate(4)
+        while not rospy.is_shutdown():
+            connections = pub_pose.get_num_connections()
+            if connections > 0:
+                for i in range(10):
+                    pub_pose.publish(p)
+                    return p.pose.pose.position.x, p.pose.pose.position.y
+            rate.sleep()
+        
+        return None, None
+
+    def take(self, array, m):
+        local_goals = []
+        for i in range(len(array)):
+            if i % m == 0:
+                local_goals.append(array[i])
+        if len(array) - 1 % m != 0:
+            local_goals.append(array[-1])
+        return local_goals
+
+    def global_plan(self, start_x, start_y, x, y, m):
+        rospy.wait_for_service('/move_base/make_plan')
+        make_plan_service = rospy.ServiceProxy('/move_base/make_plan', GetPlan)
+        msg = GetPlanRequest()
+        msg.start.header.frame_id = 'map'
+        msg.start.pose.position.x = 0
+        msg.start.pose.position.y = 0
+        msg.start.pose.position.z = 0
+        msg.start.pose.orientation.x = 0
+        msg.start.pose.orientation.y = 0
+        msg.start.pose.orientation.z = 0
+        msg.start.pose.orientation.w = 0
+        msg.goal.header.frame_id = 'map'
+        msg.goal.pose.position.x = x
+        msg.goal.pose.position.y = y
+        msg.goal.pose.position.z = 0
+        msg.goal.pose.orientation.x = 0
+        msg.goal.pose.orientation.y = 0
+        msg.goal.pose.orientation.z = 0
+        msg.goal.pose.orientation.w = 0
+        msg.tolerance = 2
+        result = make_plan_service(msg) 
+        return self.take(result.plan.poses, m)         
       
 
 def train():
@@ -481,15 +558,94 @@ def run():
     agent.initNetwork(costmap, goal_dist, velocities)
     
     done = False
+    rospy.loginfo("Running...")
     while not rospy.is_shutdown():
-        rospy.loginfo("Running...")
         action = agent.getAction(costmap, goal_dist, velocities)
-        costmap, goal_dist, velocities, reward, done = env.step(action)
+        costmap, goal_dist, velocities, _, done = env.step(action)
 
         if done:
             rospy.loginfo("DONE!")
             done = False
-            costmap, goal_dist, velocities = env.reset()            
+            costmap, goal_dist, velocities = env.reset()
+
+def prepareGlobalPlan(agent, env, plan_modulo_param):
+    rospy.loginfo("Preparing global plan...")
+    pos_x, pos_y = env.getPosition()
+    global_goal_x, global_goal_y = env.getGoal()
+    rospy.loginfo("\t From: " + str(pos_x) + ", " + str(pos_y))
+    rospy.loginfo("\t To: " + str(global_goal_x) + ", " + str(global_goal_y))
+    plan = agent.global_plan(pos_x, pos_y, global_goal_x, global_goal_y, plan_modulo_param)
+    rospy.loginfo("-----------------------------------------------------------")
+    rospy.loginfo("\t Got plan with: " + str(len(plan)) + " local goals...")
+    return plan
+
+def get_local_goal_dist(env, local_goal_x, local_goal_y):
+    pos_x, pos_y = env.getPosition()
+
+    return local_goal_x - pos_x, local_goal_y - pos_y
+
+def get_local_goal_distance(env, local_goal_x, local_goal_y):
+    pos_x, pos_y = env.getPosition()
+
+    goal_distance = round(math.hypot(local_goal_x - pos_x, local_goal_y - pos_y), 2)
+
+    return goal_distance
+
+def follow_plan(env, plan, curr_index):
+    if curr_index == -1:
+        rospy.loginfo("Starting to follow plan...")
+        curr_index = 0
+    next_goal = plan[curr_index]
+    local_goal_x, local_goal_y = next_goal.pose.position.x, next_goal.pose.position.y
+    current_distance = get_local_goal_distance(env, local_goal_x, local_goal_y)
+    if curr_index == 0:
+        rospy.loginfo("Next local goal is: " + str(local_goal_x) + ", " + str(local_goal_y))
+    if current_distance < 0.2:
+        rospy.loginfo("Local goal reached...")
+        curr_index = curr_index + 1
+        if curr_index < len(plan):
+            next_goal = plan[curr_index]
+            local_goal_x, local_goal_y = next_goal.pose.position.x, next_goal.pose.position.y            
+            rospy.loginfo("Next local goal is: " + str(local_goal_x) + ", " + str(local_goal_y))
+            return curr_index
+        else:
+            rospy.loginfo("Global goal reached...")
+            return -1
+    return curr_index
+
+def run_with_global_planner():
+    plan_modulo_param = rospy.get_param('/plan_modulo')
+    plan_modulo_param = int(plan_modulo_param)    
+    action_size = num_actions
+    agent = Agent(action_size)
+    env = Env(action_size)
+    costmap, _, velocities = env.reset()    
+    plan = prepareGlobalPlan(agent, env, plan_modulo_param)
+    next_goal = plan[0]
+    local_goal_x, local_goal_y = next_goal.pose.position.x, next_goal.pose.position.y        
+    goal_dist = get_local_goal_dist(env, local_goal_x, local_goal_y)    
+    agent.initNetwork(costmap, goal_dist, velocities)
+    
+    done = False
+    curr_index = -1
+    rospy.loginfo("Running...")
+    while not rospy.is_shutdown():
+        curr_index = follow_plan(env, plan, curr_index)
+        next_goal = plan[curr_index]
+        local_goal_x, local_goal_y = next_goal.pose.position.x, next_goal.pose.position.y        
+        goal_dist = get_local_goal_dist(env, local_goal_x, local_goal_y)
+        action = agent.getAction(costmap, goal_dist, velocities)
+        costmap, _, velocities, _, done = env.step(action)
+
+        if curr_index == -1 and done:
+            rospy.loginfo("DONE!")
+            done = False
+            costmap, _, velocities = env.reset()
+            plan = prepareGlobalPlan(agent, env, plan_modulo_param)
+        elif curr_index == -1:
+            raise Exception("Invalid state curr_index == -1 without done+")    
+        elif done:
+            raise Exception("Invalid state done without curr_index == -1...")          
 
 
 if __name__ == '__main__':    
@@ -501,7 +657,13 @@ if __name__ == '__main__':
         rospy.loginfo("Running training...")
         train()
     else:
-        rospy.loginfo("Running trained agent...")
-        run()
+        run_type_param = rospy.get_param('/run_type')
+        run_type_param = int(run_type_param)
+        if run_type_param == 1:
+            rospy.loginfo("Running trained agent with local goal...")
+            run()
+        else:
+            rospy.loginfo("Running trained agent with global planner and local goals...")
+            run_with_global_planner()            
 
     
