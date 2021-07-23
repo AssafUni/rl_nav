@@ -402,8 +402,8 @@ class ReinforceAgent():
         self.epsilon = 1.0
         self.epsilon_decay = 0.99
         self.epsilon_min = 0.05
-        self.batch_size = 500
-        self.train_start = 500
+        self.batch_size = 128
+        self.train_start = 128
         self.memory = deque(maxlen= 50000)
         self.costmapStep = 3
         self.costmapQueue = deque(maxlen=self.costmapStep * 3 + 1)
