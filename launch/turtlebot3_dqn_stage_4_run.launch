@@ -1,14 +1,12 @@
 <launch>
   <arg name="stage" default="4"/>
-  <arg name="load_model" default="0"/>
-  <arg name="load_episode" default="0"/>
   <arg name="train" default="0"/>
   <arg name="run_type" default="1"/>
+   <arg name="model_type" default="0"/> 
   <param name="stage_number"  value="$(arg stage)"/>
-  <param name="load_model"  value="$(arg load_model)"/>
-  <param name="load_episode"  value="$(arg load_episode)"/>
   <param name="train"  value="$(arg train)"/>
   <param name="run_type"  value="$(arg run_type)"/>
+  <param name="model_type"  value="$(arg model_type)"/>  
   <node pkg="rl_nav" type="turtlebot3_dqn.py" name="turtlebot3_dqn" output="screen" />
 
   <node pkg="rl_nav" type="combination_obstacle_1.py" name="combination_obstacle_1" output="screen" />

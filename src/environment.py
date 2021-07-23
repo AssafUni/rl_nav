@@ -13,13 +13,16 @@ from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from respawnGoal import Respawn
 
 class Env():
-    def __init__(self, action_size):
+    def __init__(self, action_size, alternative_rg_reward=False, alternative_rs_reward=False):
         self.goal_x = 0
         self.goal_y = 0
         self.heading = 0
         self.action_size = action_size
         self.initGoal = True
         self.goal_distance =  float('Inf')
+        self.last_goal_distance = float('Inf')
+        self.alternative_rg_reward = alternative_rg_reward
+        self.alternative_rs_reward = alternative_rs_reward
         self.position = Pose()
         self.pub_cmd_vel = rospy.Publisher('cmd_vel', Twist, queue_size=5)
         self.sub_odom = rospy.Subscriber('odom', Odometry, self.getOdometry)
@@ -75,7 +78,7 @@ class Env():
 
         return data_scan, data_costmap
 
-    def setReward(self, scan):
+    def setReward(self, scan, action):
         rg = 0
         rc = 0
         rs = -5
@@ -83,6 +86,9 @@ class Env():
 
         min_range = 0.13
         scan_range = []
+
+        if self.alternative_rs_reward:
+            rs = 0
 
         for i in range(len(scan.ranges)):
             if scan.ranges[i] == float('Inf'):
@@ -106,10 +112,30 @@ class Env():
             self.goal_x, self.goal_y = self.respawn_goal.getPosition(True, delete=True)
             return rg + rc + rs, True
         
-        rg = epsilon * (self.goal_distance - current_distance)
+        if not self.alternative_rg_reward:
+            rg = epsilon * (self.last_goal_distance - current_distance)
+        else:
+            yaw_reward = []
+            heading = self.heading # maybe changed since state created?
+
+            for i in range(5):
+                    angle = -pi / 4 + heading + (pi / 8 * i) + pi / 2
+                    tr = 1 - 4 * math.fabs(0.5 - math.modf(0.25 + 0.5 * angle % (2 * math.pi) / math.pi)[0])
+                    yaw_reward.append(tr)
+
+            distance_rate = 2 ** (current_distance / self.goal_distance)
+            r = ((round(yaw_reward[action] * 5, 2)) * distance_rate)                    
+            rg = epsilon * r
         
         return rg + rc + rs, False
              
+    def debug_step(self):
+        data_scan, data_costmap = self.getState()           
+        reward, done = self.setReward(data_scan, 2)
+        self.last_goal_distance = self.getGoalDistace()
+
+        return np.asarray(data_costmap.data), (self.goal_x - self.position.x, self.goal_y - self.position.y), (0, 0), reward, done        
+
     def step(self, action):
         max_angular_vel = 1.5
         lin_vel = 0.15
@@ -133,8 +159,8 @@ class Env():
 
 
         data_scan, data_costmap = self.getState()           
-        reward, done = self.setReward(data_scan)
-        self.goal_distance = self.getGoalDistace()
+        reward, done = self.setReward(data_scan, action)
+        self.last_goal_distance = self.getGoalDistace()
 
         return np.asarray(data_costmap.data), (self.goal_x - self.position.x, self.goal_y - self.position.y), (lin_vel, ang_vel), reward, done
 
@@ -151,6 +177,7 @@ class Env():
 
         self.goal_x, self.goal_y = self.respawn_goal.getPosition(True, delete=not self.initGoal)
         self.goal_distance = self.getGoalDistace()
+        self.last_goal_distance = self.getGoalDistace()
         self.initGoal = False
 
         return np.asarray(data_costmap.data), (self.goal_x - self.position.x, self.goal_y - self.position.y), (0.0, 0.0)

@@ -1,11 +1,13 @@
 <launch>
   <arg name="stage" default="1"/>
   <arg name="train" default="0"/>
-  <arg name="run_type" default="1"/>
-   <arg name="model_type" default="0"/> 
+  <arg name="run_type" default="3"/>
+  <arg name="alternative_rg_reward" default="1"/>
+  <arg name="alternative_rs_reward" default="1"/>
   <param name="stage_number"  value="$(arg stage)"/>
   <param name="train"  value="$(arg train)"/>
   <param name="run_type"  value="$(arg run_type)"/>
-  <param name="model_type"  value="$(arg model_type)"/>  
+  <param name="alternative_rg_reward"  value="$(arg alternative_rg_reward)"/>
+  <param name="alternative_rs_reward"  value="$(arg alternative_rs_reward)"/>  
   <node pkg="rl_nav" type="turtlebot3_dqn.py" name="turtlebot3_dqn" output="screen" />
 </launch>
