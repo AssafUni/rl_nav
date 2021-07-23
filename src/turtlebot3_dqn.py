@@ -803,7 +803,7 @@ def train():
                 m, s = divmod(int(time.time() - start_time), 60)
                 h, m = divmod(m, 60)
 
-                rospy.loginfo('Loss: %d, Ep: %d score: %.2f memory: %d epsilon: %.2f time: %d:%02d:%02d',
+                rospy.loginfo('Loss: %f, Ep: %d score: %.2f memory: %d epsilon: %.2f time: %d:%02d:%02d',
                               loss, e, score, len(agent.memory), agent.epsilon, h, m, s)
                 param_keys = ['epsilon']
                 param_values = [agent.epsilon]
