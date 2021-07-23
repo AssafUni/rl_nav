@@ -101,6 +101,8 @@ class Env():
         if min_range > min(scan_range) > 0:
             rospy.loginfo("Collision!!")
             rc = -500
+            if self.alternative_rg_reward:
+                rc = -5000
             self.pub_cmd_vel.publish(Twist())
             return rg + rc + rs, True
 
@@ -108,6 +110,8 @@ class Env():
         if current_distance < 0.2:
             rospy.loginfo("Goal!!")
             rg = 500
+            if self.alternative_rg_reward:
+                rg = 5000
             self.pub_cmd_vel.publish(Twist())
             self.goal_x, self.goal_y = self.respawn_goal.getPosition(True, delete=True)
             return rg + rc + rs, True
