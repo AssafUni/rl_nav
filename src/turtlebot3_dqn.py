@@ -486,11 +486,11 @@ class ReinforceAgent():
 
     def do_train(self, costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done):
         if self.model_type == full_model:
-            train_step_costmap_goal_vel_vector(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done) 
+            return train_step_costmap_goal_vel_vector(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done) 
         elif self.model_type == goal_model:
-           train_step_goal_vector(self.extractGoalVector(goal_vel), action, reward, self.extractGoalVector(next_goal_vel), done) 
+           return train_step_goal_vector(self.extractGoalVector(goal_vel), action, reward, self.extractGoalVector(next_goal_vel), done) 
         elif self.model_type == goal_vel_model:
-            train_step_goal_vel_vector(goal_vel, action, reward, next_goal_vel, done)          
+            return train_step_goal_vel_vector(goal_vel, action, reward, next_goal_vel, done)          
 
     def appendMemory(self, costmap, goal_vel, action, reward,  next_costmap, next_goal_vel, done):
         self.memory.append((costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done))
@@ -585,11 +585,11 @@ class Agent():
 
     def do_train(self, costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done):
         if self.model_type == full_model:
-            train_step_costmap_goal_vel_vector(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done) 
+            return train_step_costmap_goal_vel_vector(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done) 
         elif self.model_type == goal_model:
-           train_step_goal_vector(self.r_a.extractGoalVector(goal_vel), action, reward, self.extractGoalVector(next_goal_vel), done) 
+           return train_step_goal_vector(self.r_a.extractGoalVector(goal_vel), action, reward, self.extractGoalVector(next_goal_vel), done) 
         elif self.model_type == goal_vel_model:
-            train_step_goal_vel_vector(goal_vel, action, reward, next_goal_vel, done) 
+            return train_step_goal_vel_vector(goal_vel, action, reward, next_goal_vel, done) 
 
     def initNetwork(self, costmap, goal_dist, velocities):
         global main_nn
