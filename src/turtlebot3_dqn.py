@@ -396,15 +396,15 @@ class ReinforceAgent():
         self.load_model = load_model or stage_int > 1
         self.load_episode = load_episode
         self.action_size = action_size
-        self.episode_step = 500
+        self.episode_step = 1500
         self.discount_factor = discount
         self.learning_rate = 5 * (10 ** -4)
         self.epsilon = 1.0
         self.epsilon_decay = 0.99
         self.epsilon_min = 0.05
-        self.batch_size = 64
-        self.train_start = 64
-        self.memory = deque(maxlen= 2 * (10 ** 5))
+        self.batch_size = 500
+        self.train_start = 500
+        self.memory = deque(maxlen= 50000)
         self.costmapStep = 3
         self.costmapQueue = deque(maxlen=self.costmapStep * 3 + 1)
         
