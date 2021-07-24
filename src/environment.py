@@ -73,7 +73,10 @@ class Env():
         self.heading = round(heading, 2)
 
     def getState(self):
-        self.rate.sleep()	
+        try:
+            self.rate.sleep()
+        except:     
+            pass   	
         while self.data_scan is None:
             pass
         while self.data_costmap is None:
