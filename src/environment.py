@@ -19,6 +19,7 @@ class Env():
         self.heading = 0
         self.data_scan  = None
         self.data_costmap = None
+        self.rate = rospy.Rate(4)
         self.action_size = action_size
         self.initGoal = True
         self.goal_distance =  float('Inf')
@@ -72,6 +73,7 @@ class Env():
         self.heading = round(heading, 2)
 
     def getState(self):
+        self.rate.sleep()	
         while self.data_scan is None:
             pass
         while self.data_costmap is None:
