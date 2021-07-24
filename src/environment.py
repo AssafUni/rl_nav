@@ -17,6 +17,8 @@ class Env():
         self.goal_x = 0
         self.goal_y = 0
         self.heading = 0
+        self.data_scan  = None
+        self.data_costmap = None
         self.action_size = action_size
         self.initGoal = True
         self.goal_distance =  float('Inf')
@@ -46,13 +48,11 @@ class Env():
 
         return goal_distance
 
-    # Important, to avoid dropping and reconnection
     def getScan(self, scan):
-        pass
+        self.data_scan = scan
 
-    # Important, to avoid dropping and reconnection
     def getCostmap(self, costmap):
-        pass
+        self.data_costmap = costmap
 
     def getOdometry(self, odom):
         self.position = odom.pose.pose.position
@@ -72,21 +72,12 @@ class Env():
         self.heading = round(heading, 2)
 
     def getState(self):
-        data_scan = None
-        while data_scan is None:
-            try:
-                data_scan = rospy.wait_for_message('scan', LaserScan, timeout=5)
-            except:
-                pass
-        data_costmap = None
-        while data_costmap is None:
-            try:
-                data_costmap = rospy.wait_for_message('/move_base/local_costmap/costmap', OccupancyGrid, timeout=5)
-            except:
-                pass
+        while self.data_scan is None:
+            pass
+        while self.data_costmap is None:
+            pass
 
-
-        return data_scan, data_costmap
+        return self.data_scan, self.data_costmap
 
     def setReward(self, scan, action):
         rg = 0
