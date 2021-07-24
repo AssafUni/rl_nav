@@ -26,6 +26,8 @@ class Env():
         self.position = Pose()
         self.pub_cmd_vel = rospy.Publisher('cmd_vel', Twist, queue_size=5)
         self.sub_odom = rospy.Subscriber('odom', Odometry, self.getOdometry)
+        self.sub_scan = rospy.Subscriber('scan', LaserScan, self.getScan)
+        self.sub_costmap = rospy.Subscriber('/move_base/local_costmap/costmap', OccupancyGrid, getCostmap)
         self.reset_proxy = rospy.ServiceProxy('gazebo/reset_simulation', Empty)
         self.unpause_proxy = rospy.ServiceProxy('gazebo/unpause_physics', Empty)
         self.pause_proxy = rospy.ServiceProxy('gazebo/pause_physics', Empty)
@@ -43,6 +45,14 @@ class Env():
         goal_distance = round(math.hypot(self.goal_x - self.position.x, self.goal_y - self.position.y), 2)
 
         return goal_distance
+
+    # Important, to avoid dropping and reconnection
+    def getScan(self, scan):
+        pass
+
+    # Important, to avoid dropping and reconnection
+    def getCostmap(self, costmap):
+        pass
 
     def getOdometry(self, odom):
         self.position = odom.pose.pose.position
