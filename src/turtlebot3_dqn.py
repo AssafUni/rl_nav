@@ -29,15 +29,12 @@ import pickle
 EPISODES = 3000
 num_actions = 5
 discount = 0.99
-full_model = 0
-goal_model = 1
-goal_vel_model = 2
 
 layers = tf.keras.layers
 
-class DuelingDQNCostmapPlusGoalVelVector(tf.keras.Model):
+class DuelingDQN(tf.keras.Model):
   def __init__(self, num_actions):
-    super(DuelingDQNCostmapPlusGoalVelVector, self).__init__()
+    super(DuelingDQN, self).__init__()
     self.conv1 = layers.Conv2D(
         filters=32,
         kernel_size=8,
@@ -150,166 +147,6 @@ class DuelingDQNCostmapPlusGoalVelVector(tf.keras.Model):
     Q = V + tf.subtract(A, tf.reduce_mean(A, axis=1, keepdims=True))
     return Q
 
-class DuelingDQNGoalVector(tf.keras.Model):
-  def __init__(self, num_actions):
-    super(DuelingDQNGoalVector, self).__init__()
-    self.dense0 = layers.Dense(
-        units=2,
-        activation="relu",
-        kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
-        bias_initializer=tf.keras.initializers.Zeros(),
-    )
-    self.dense1 = layers.Dense(
-        units=64,
-        activation="relu",
-        kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
-        bias_initializer=tf.keras.initializers.Zeros(),
-    )
-    self.reshape = layers.Reshape((1, 1, 64))
-    self.conv4 = layers.Conv2D(
-        filters=64,
-        kernel_size=3,
-        strides=1,
-        activation="relu",
-        kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
-        bias_initializer=tf.keras.initializers.Zeros(),
-        # data_format="channels_first",
-        padding='same'
-    )    
-    self.conv5 = layers.Conv2D(
-        filters=64,
-        kernel_size=3,
-        strides=1,
-        activation="relu",
-        kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
-        bias_initializer=tf.keras.initializers.Zeros(),
-        # data_format="channels_first",
-        padding='same'
-    )   
-    self.conv6 = layers.Conv2D(
-        filters=64,
-        kernel_size=3,
-        strides=1,
-        activation="relu",
-        kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
-        bias_initializer=tf.keras.initializers.Zeros(),
-        # data_format="channels_first",
-        padding='same'
-    )  
-    self.flatten = layers.Flatten()
-    self.dense2 = layers.Dense(
-        units=512,
-        activation="relu",
-        kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
-        bias_initializer=tf.keras.initializers.Zeros(),
-    )    
-    self.dense3 = layers.Dense(
-        units=512,
-        activation="relu",
-        kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
-        bias_initializer=tf.keras.initializers.Zeros(),
-    )
-    self.V = layers.Dense(1)
-    self.A = layers.Dense(num_actions)       
-
-  @tf.function
-  def call(self, goal_vector):
-    y = self.dense0(goal_vector)
-    y = self.dense1(y)
-    y = self.reshape(y)
-    o = tf.constant([1, 1, 8, 1], tf.int32) # int? not floats? velocities are floats?
-    y = tf.tile(y, o)
-    x = self.conv4(y)
-    x = self.conv5(x)
-    x = self.conv6(x)
-    x = self.flatten(x)
-    x = self.dense2(x)
-    x = self.dense3(x)
-    V = self.V(x)
-    A = self.A(x)
-    Q = V + tf.subtract(A, tf.reduce_mean(A, axis=1, keepdims=True))
-    return Q
-
-class DuelingDQNGoalVelVector(tf.keras.Model):
-  def __init__(self, num_actions):
-    super(DuelingDQNGoalVelVector, self).__init__()
-    self.dense0 = layers.Dense(
-        units=4,
-        activation="relu",
-        kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
-        bias_initializer=tf.keras.initializers.Zeros(),
-    )
-    self.dense1 = layers.Dense(
-        units=64,
-        activation="relu",
-        kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
-        bias_initializer=tf.keras.initializers.Zeros(),
-    )
-    self.reshape = layers.Reshape((1, 1, 64))
-    self.conv4 = layers.Conv2D(
-        filters=64,
-        kernel_size=3,
-        strides=1,
-        activation="relu",
-        kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
-        bias_initializer=tf.keras.initializers.Zeros(),
-        # data_format="channels_first",
-        padding='same'
-    )    
-    self.conv5 = layers.Conv2D(
-        filters=64,
-        kernel_size=3,
-        strides=1,
-        activation="relu",
-        kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
-        bias_initializer=tf.keras.initializers.Zeros(),
-        # data_format="channels_first",
-        padding='same'
-    )   
-    self.conv6 = layers.Conv2D(
-        filters=64,
-        kernel_size=3,
-        strides=1,
-        activation="relu",
-        kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
-        bias_initializer=tf.keras.initializers.Zeros(),
-        # data_format="channels_first",
-        padding='same'
-    )  
-    self.flatten = layers.Flatten()
-    self.dense2 = layers.Dense(
-        units=512,
-        activation="relu",
-        kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
-        bias_initializer=tf.keras.initializers.Zeros(),
-    )    
-    self.dense3 = layers.Dense(
-        units=512,
-        activation="relu",
-        kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
-        bias_initializer=tf.keras.initializers.Zeros(),
-    )
-    self.V = layers.Dense(1)
-    self.A = layers.Dense(num_actions)       
-
-  @tf.function
-  def call(self, goal_vel_vector):
-    y = self.dense0(goal_vel_vector)
-    y = self.dense1(y)
-    y = self.reshape(y)
-    o = tf.constant([1, 1, 8, 1], tf.int32) # int? not floats? velocities are floats?
-    y = tf.tile(y, o)
-    x = self.conv4(y)
-    x = self.conv5(x)
-    x = self.conv6(x)
-    x = self.flatten(x)
-    x = self.dense2(x)
-    x = self.dense3(x)
-    V = self.V(x)
-    A = self.A(x)
-    Q = V + tf.subtract(A, tf.reduce_mean(A, axis=1, keepdims=True))
-    return Q
-
 
 loss_fn = tf.keras.losses.Huber()
 optimizer = tf.keras.optimizers.Adam(lr=1e-5, clipnorm=10)
@@ -318,7 +155,7 @@ main_nn = None
 target_nn = None
 
 @tf.function
-def train_step_costmap_goal_vel_vector(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done):
+def train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done):
   next_qs_main = main_nn(next_costmap, next_goal_vel)
   next_qs_argmax = tf.argmax(next_qs_main, axis=-1)
   next_action_mask = tf.one_hot(next_qs_argmax, num_actions)
@@ -334,49 +171,14 @@ def train_step_costmap_goal_vel_vector(costmap, goal_vel, action, reward, next_c
   optimizer.apply_gradients(zip(grads, main_nn.trainable_variables))
   return loss
 
-@tf.function
-def train_step_goal_vector(goal, action, reward, next_goal, done):
-  next_qs_main = main_nn(next_goal)
-  next_qs_argmax = tf.argmax(next_qs_main, axis=-1)
-  next_action_mask = tf.one_hot(next_qs_argmax, num_actions)
-  next_qs_target = target_nn(next_goal)
-  masked_next_qs = tf.reduce_sum(next_action_mask * next_qs_target, axis=-1)
-  target = reward + (1. - done) * discount * masked_next_qs
-  with tf.GradientTape() as tape:
-    qs = main_nn(goal)
-    action_mask = tf.one_hot(action, num_actions)
-    masked_qs = tf.reduce_sum(action_mask * qs, axis=-1)
-    loss = loss_fn(target, masked_qs)
-  grads = tape.gradient(loss, main_nn.trainable_variables)
-  optimizer.apply_gradients(zip(grads, main_nn.trainable_variables))
-  return loss
-
-@tf.function
-def train_step_goal_vel_vector(goal_vel, action, reward, next_goal_vel, done):
-  next_qs_main = main_nn(next_goal_vel)
-  next_qs_argmax = tf.argmax(next_qs_main, axis=-1)
-  next_action_mask = tf.one_hot(next_qs_argmax, num_actions)
-  next_qs_target = target_nn(next_goal_vel)
-  masked_next_qs = tf.reduce_sum(next_action_mask * next_qs_target, axis=-1)
-  target = reward + (1. - done) * discount * masked_next_qs
-  with tf.GradientTape() as tape:
-    qs = main_nn(goal_vel)
-    action_mask = tf.one_hot(action, num_actions)
-    masked_qs = tf.reduce_sum(action_mask * qs, axis=-1)
-    loss = loss_fn(target, masked_qs)
-  grads = tape.gradient(loss, main_nn.trainable_variables)
-  optimizer.apply_gradients(zip(grads, main_nn.trainable_variables))
-  return loss
-
 
 class ReinforceAgent():
     def __init__(self, action_size, load_params=True):
         self.pub_result = rospy.Publisher('result', Float32MultiArray, queue_size=5)
-        self.dirPath = os.path.dirname(os.path.realpath(__file__))        
+        self.dirPath = os.path.dirname(os.path.realpath(__file__))
         load_model = False
         stage_int = 1
         load_episode = 0
-        model_type = 0
         if load_params:
             self.stage = rospy.get_param('/stage_number')
             stage_int = int(self.stage)
@@ -388,15 +190,12 @@ class ReinforceAgent():
             if stage_int > 1:
                 self.lastDirPath = self.dirPath.replace('rl_nav/src', 'rl_nav/save_model/stage_' + str(stage_int - 1) + "_")
             self.dirPath = self.dirPath.replace('rl_nav/src', 'rl_nav/save_model/stage_' + str(self.stage) + "_")
-            model_type = rospy.get_param('/model_type')
-            model_type = int(model_type)
         self.result = Float32MultiArray()
 
-        self.model_type = model_type
         self.load_model = load_model or stage_int > 1
         self.load_episode = load_episode
         self.action_size = action_size
-        self.episode_step = 1500
+        self.episode_step = 500
         self.discount_factor = discount
         self.learning_rate = 5 * (10 ** -4)
         self.epsilon = 1.0
@@ -404,12 +203,12 @@ class ReinforceAgent():
         self.epsilon_min = 0.05
         self.batch_size = 64
         self.train_start = 64
-        self.memory = deque(maxlen= 50000)
+        self.memory = deque(maxlen=50000)
         self.costmapStep = 3
         self.costmapQueue = deque(maxlen=self.costmapStep * 3 + 1)
         
-        self.model = self.buildModel(self.model_type)
-        self.target_model = self.buildModel(self.model_type)
+        self.model = self.buildModel()
+        self.target_model = self.buildModel()
 
     def preprocessCostmap(self, costmap):
         self.costmapQueue.append(costmap)
@@ -451,21 +250,9 @@ class ReinforceAgent():
         velocities_vector = np.asarray(velocities)
         goal_vel_vector = np.concatenate((goal_vector, velocities_vector), axis=None)
         return np.expand_dims(goal_vel_vector, axis=0)
-    
-    def extractGoalVector(self, goal_vel):        
-        goal_vector = []
-        goal_vector.append(goal_vel[0][0])
-        goal_vector.append(goal_vel[0][1])
-        goal_vector = np.asarray(goal_vector)
-        return np.expand_dims(goal_vector, axis=0)
 
-    def buildModel(self, model_type):
-        if model_type == full_model:
-            return DuelingDQNCostmapPlusGoalVelVector(self.action_size)
-        elif model_type == goal_model:
-            return DuelingDQNGoalVector(self.action_size)
-        elif model_type == goal_vel_model:
-            return DuelingDQNGoalVelVector(self.action_size)
+    def buildModel(self):
+        return DuelingDQN(self.action_size)
 
     def updateTargetModel(self):
         self.target_model.set_weights(self.model.get_weights())
@@ -475,22 +262,8 @@ class ReinforceAgent():
             self.q_value = np.zeros(self.action_size)
             return random.randrange(self.action_size)
         else:
-            if self.model_type == full_model:
-                self.q_value = self.model(costmap, goal_vel)
-            elif self.model_type == goal_model:
-                self.q_value = self.model(self.extractGoalVector(goal_vel))
-            elif self.model_type == goal_vel_model:
-                self.q_value = self.model(goal_vel)         
-            
+            self.q_value = self.model(costmap, goal_vel)
             return np.argmax(self.q_value)
-
-    def do_train(self, costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done):
-        if self.model_type == full_model:
-            return train_step_costmap_goal_vel_vector(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done) 
-        elif self.model_type == goal_model:
-           return train_step_goal_vector(self.extractGoalVector(goal_vel), action, reward, self.extractGoalVector(next_goal_vel), done) 
-        elif self.model_type == goal_vel_model:
-            return train_step_goal_vel_vector(goal_vel, action, reward, next_goal_vel, done)          
 
     def appendMemory(self, costmap, goal_vel, action, reward,  next_costmap, next_goal_vel, done):
         self.memory.append((costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done))
@@ -511,13 +284,13 @@ class ReinforceAgent():
     
         main_nn = self.model
         target_nn = self.target_model
-         
-        self.do_train(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done) 
+
+        train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done) 
 
         main_nn = self.target_model
         target_nn = self.model
 
-        self.do_train(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done)             
+        train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done)             
 
         if self.load_model and self.load_episode > 0:
             rospy.loginfo('Loading saved model...')
@@ -565,7 +338,7 @@ class ReinforceAgent():
             main_nn = self.model
             target_nn = self.target_model
 
-            loss = self.do_train(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done) 
+            loss = train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done) 
             losses.append(loss)
         
         return np.mean(losses)
@@ -576,20 +349,10 @@ class Agent():
         self.dirPath = os.path.dirname(os.path.realpath(__file__))
         self.stage = rospy.get_param('/stage_number')
         stage_int = int(self.stage)
-        model_type = rospy.get_param('/model_type')
-        self.model_type = int(model_type)        
         self.set_inital_pose(stage_int)
         self.dirPath = self.dirPath.replace('rl_nav/src', 'rl_nav/save_model/stage_' + str(self.stage) + "_")
 
-        self.model = self.r_a.buildModel(model_type)
-
-    def do_train(self, costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done):
-        if self.model_type == full_model:
-            return train_step_costmap_goal_vel_vector(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done) 
-        elif self.model_type == goal_model:
-           return train_step_goal_vector(self.r_a.extractGoalVector(goal_vel), action, reward, self.extractGoalVector(next_goal_vel), done) 
-        elif self.model_type == goal_vel_model:
-            return train_step_goal_vel_vector(goal_vel, action, reward, next_goal_vel, done) 
+        self.model = self.r_a.buildModel()
 
     def initNetwork(self, costmap, goal_dist, velocities):
         global main_nn
@@ -603,7 +366,7 @@ class Agent():
         main_nn = self.model
         target_nn = self.model
 
-        self.do_train(costmap, goal_vel, 0, 0, costmap, goal_vel, False)            
+        train_step(costmap, goal_vel, 0, 0, costmap, goal_vel, False)            
 
         rospy.loginfo('Loading last saved model...')
         path = self.dirPath + "_last.weights"
@@ -691,27 +454,6 @@ class Agent():
         return self.take(result.plan.poses, m)         
       
 
-def debug_enviornment():
-    alternative_rg_reward = rospy.get_param('/alternative_rg_reward')
-    alternative_rg_reward = int(alternative_rg_reward)    
-    alternative_rg_reward = alternative_rg_reward == 1
-    alternative_rs_reward = rospy.get_param('/alternative_rs_reward')
-    alternative_rs_reward = int(alternative_rs_reward)    
-    alternative_rs_reward = alternative_rs_reward == 1  
-    rate = rospy.Rate(1)
-    action_size = num_actions
-    env = Env(action_size, alternative_rg_reward, alternative_rs_reward)
-
-    rospy.loginfo("Running...")
-    _, goal_dist, _ = env.reset()
-    while not rospy.is_shutdown():            
-        _, goal_dist, _, reward, done = env.debug_step()
-        rospy.loginfo("Goal dists: " + str(goal_dist))
-        rospy.loginfo("Reward: " + str(reward))
-        rospy.loginfo("Done: " + str(done))
-        rate.sleep()
-
-
 def train():
     pub_result = rospy.Publisher('result', Float32MultiArray, queue_size=5)
     pub_get_action = rospy.Publisher('get_action', Float32MultiArray, queue_size=5)
@@ -721,13 +463,7 @@ def train():
     action_size = num_actions
     loss = float('inf')
 
-    alternative_rg_reward = rospy.get_param('/alternative_rg_reward')
-    alternative_rg_reward = int(alternative_rg_reward)    
-    alternative_rg_reward = alternative_rg_reward == 1
-    alternative_rs_reward = rospy.get_param('/alternative_rs_reward')
-    alternative_rs_reward = int(alternative_rs_reward)    
-    alternative_rs_reward = alternative_rs_reward == 1  
-    env = Env(action_size, alternative_rg_reward, alternative_rs_reward)
+    env = Env(action_size)
 
     agent = ReinforceAgent(action_size)
     scores, episodes = [], []
@@ -930,10 +666,8 @@ if __name__ == '__main__':
         if run_type_param == 1:
             rospy.loginfo("Running trained agent with local goal...")
             run()
-        elif run_type_param == 2:
+        else:
             rospy.loginfo("Running trained agent with global planner and local goals...")
             run_with_global_planner()            
-        elif run_type_param == 3:
-            rospy.loginfo("Running enviornment debug...")
-            debug_enviornment()
+
     
