@@ -170,7 +170,7 @@ class Env():
         except (rospy.ServiceException) as e:
             print("gazebo/reset_simulation service call failed")
 
-        _, data_costmap = self.getState()
+        _, data_costmap, _ = self.getState()
 
         self.goal_x, self.goal_y = self.respawn_goal.getPosition(True, delete=not self.initGoal)
         self.goal_distance = self.getGoalDistace()
