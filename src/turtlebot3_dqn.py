@@ -67,7 +67,7 @@ class DuelingDQN(tf.keras.Model):
         padding='same'
     )
     self.dense0 = layers.Dense(
-        units=4,
+        units=2,
         activation="relu",
         kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
         bias_initializer=tf.keras.initializers.Zeros(),
@@ -136,8 +136,8 @@ class DuelingDQN(tf.keras.Model):
     y = self.reshape(y)
     o = tf.constant([1, 1, 8, 1], tf.int32) # int? not floats? velocities are floats?
     y = tf.tile(y, o)
-    x = self.add([x, y])
-    x = self.conv4(x)
+    # x = self.add([x, y])
+    x = self.conv4(y)
     x = self.conv5(x)
     x = self.conv6(x)
     x = self.flatten(x)
@@ -204,7 +204,7 @@ class ReinforceAgent():
         self.epsilon_min = 0.05
         self.batch_size = 64
         self.train_start = 64
-        self.memory = deque(maxlen=50000)
+        self.memory = deque(maxlen=200000)
         self.costmapStep = 3
         self.costmapQueue = deque(maxlen=self.costmapStep * 3 + 1)
         
@@ -248,9 +248,9 @@ class ReinforceAgent():
 
     def preprocessGoalAndVelocities(self, goal, velocities):
         goal_vector = np.asarray(goal)
-        velocities_vector = np.asarray(velocities)
-        goal_vel_vector = np.concatenate((goal_vector, velocities_vector), axis=None)
-        return np.expand_dims(goal_vel_vector, axis=0)
+        # velocities_vector = np.asarray(velocities)
+        # goal_vel_vector = np.concatenate((goal_vector, velocities_vector), axis=None)
+        return np.expand_dims(goal_vector, axis=0)
 
     def buildModel(self):
         return DuelingDQN(self.action_size)
