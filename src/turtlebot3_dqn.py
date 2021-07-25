@@ -188,7 +188,7 @@ class ReinforceAgent():
             load_model = load_model == 1
             load_episode = rospy.get_param('/load_episode')
             load_episode = int(load_episode)                
-            if stage_int > 1:
+            if stage_int > 1 and not load_model:
                 self.lastDirPath = self.dirPath.replace('rl_nav/src', 'rl_nav/save_model/stage_' + str(stage_int - 1) + "_")
             self.dirPath = self.dirPath.replace('rl_nav/src', 'rl_nav/save_model/stage_' + str(self.stage) + "_")
         self.result = Float32MultiArray()
