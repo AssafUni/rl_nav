@@ -267,11 +267,11 @@ class ReinforceAgent():
             return np.argmax(self.q_value)
 
     def appendMemory(self, costmap, goal_vel, action, reward,  next_costmap, next_goal_vel, done):
-        costmap = tf.convert_to_tensor(costmap, dtype=tf.int64)
+        costmap = tf.convert_to_tensor(costmap, dtype=tf.float64)
         goal_vel = tf.convert_to_tensor(goal_vel, dtype=tf.float64)
         action = tf.convert_to_tensor(action, dtype=tf.int32)
         reward = tf.convert_to_tensor(reward, dtype=tf.float64)
-        next_costmap = tf.convert_to_tensor(next_costmap, dtype=tf.int32)
+        next_costmap = tf.convert_to_tensor(next_costmap, dtype=tf.float64)
         next_goal_vel = tf.convert_to_tensor(next_goal_vel, dtype=tf.float64)
         done = tf.convert_to_tensor(done, dtype=tf.bool)
         self.memory.append((costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done))
