@@ -116,9 +116,9 @@ turtlebot3_dqn_stage_4_run_global.launch
 ## Project structure and file explanation
 
 1. src directory-
-    1. turtlebot3_dqn.py- The main node of the Double Dueling DQN. It runs the enviornment, the reinforce agemt and the training loop.
+    1. turtlebot3_dqn.py- The main node of the Double Dueling DQN. It runs the enviornment, the reinforce agent and the training loop.
     2. environment.py- A code responsible to represent the enviornment. The DQN node creates the enviornment and handles the interaction between the agent and the enviornment. In essence, the enviornment.py is the piece of code responsible to interact with the actual gazebo/real enviornment.
-    3. respawnGoal.py- The code responsible for instanting the goal and deleting it.
+    3. respawnGoal.py- The code responsible for instantiating the goal and deleting it.
     4. *-obstacle.py- The obstacle code files manage the complicated moving obstacles in stages 3 and 4.
 2. launch directory-
     1. turtlebot3_stage_*.launch- Launch files for each stage of the training. 
