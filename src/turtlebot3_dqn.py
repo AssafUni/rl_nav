@@ -273,7 +273,7 @@ class ReinforceAgent():
         reward = tf.convert_to_tensor(reward, dtype=tf.float32)
         next_costmap = tf.convert_to_tensor(next_costmap, dtype=tf.float32)
         next_goal_vel = tf.convert_to_tensor(next_goal_vel, dtype=tf.float32)
-        done = tf.convert_to_tensor(done, dtype=tf.bool)
+        done = tf.convert_to_tensor(done, dtype=tf.float32)
         self.memory.append((costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done))
 
     def initNetwork(self):
