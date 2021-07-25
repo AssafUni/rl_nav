@@ -137,10 +137,3 @@ turtlebot3_dqn_stage_4_run_global.launch
     2. map4- The map for stage 4.
 4. models directory- This directory includes some models for the enviornment.
 5. save_model directory- This is where the weights of the model will be saved for each 10 episodes.
-
-## License
-
-MIT
-
-**Free Software, Hell Yeah!**
-
