@@ -14,12 +14,12 @@ from std_msgs.msg import Float32MultiArray
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav_msgs.srv import GetPlan, GetPlanRequest
 from environment import Env
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+#import os
+#os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 import tensorflow as tf
-tf.get_logger().setLevel('INFO')
-import logging
-tf.get_logger().setLevel(logging.ERROR)
+#tf.get_logger().setLevel('INFO')
+#import logging
+#tf.get_logger().setLevel(logging.ERROR)
 from keras.models import Sequential
 from keras.optimizers import RMSprop
 from keras.layers import Dense, Dropout, Activation
@@ -31,6 +31,7 @@ num_actions = 5
 discount = 0.99
 
 layers = tf.keras.layers
+tf.keras.backend.set_floatx('float64')
 
 class DuelingDQN(tf.keras.Model):
   def __init__(self, num_actions):
@@ -266,6 +267,13 @@ class ReinforceAgent():
             return np.argmax(self.q_value)
 
     def appendMemory(self, costmap, goal_vel, action, reward,  next_costmap, next_goal_vel, done):
+        costmap = tf.convert_to_tensor(costmap, dtype=tf.int64)
+        goal_vel = tf.convert_to_tensor(goal_vel, dtype=tf.float64)
+        action = tf.convert_to_tensor(action, dtype=tf.int64)
+        reward = tf.convert_to_tensor(reward, dtype=tf.int64)
+        next_costmap = tf.convert_to_tensor(reward, dtype=tf.int64)
+        next_goal_vel = tf.convert_to_tensor(next_goal_vel, dtype=tf.float64)
+        done = tf.convert_to_tensor(done, dtype=tf.bool)
         self.memory.append((costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done))
 
     def initNetwork(self):
