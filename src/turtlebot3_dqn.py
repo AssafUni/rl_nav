@@ -229,7 +229,7 @@ class ReinforceAgent():
         self.load_model = load_model or stage_int > 1
         self.load_episode = load_episode
         self.action_size = action_size
-        self.episode_step = 500
+        self.episode_step = 6000
         self.discount_factor = discount
         self.learning_rate = 5 * (10 ** -4)
         self.epsilon = 1.0
