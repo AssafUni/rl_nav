@@ -85,8 +85,8 @@ class Respawn():
                 if abs(goal_x - self.last_goal_x) < 1 and abs(goal_y - self.last_goal_y) < 1:
                     position_check = True
 
-                self.goal_position.position.x = goal_x
-                self.goal_position.position.y = goal_y
+                self.goal_position.position.x = 0.5 #goal_x
+                self.goal_position.position.y = 0.5 #goal_y
 
         else:
             while position_check:

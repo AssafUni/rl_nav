@@ -193,7 +193,7 @@ class Env():
         self.last_goal_distance = self.getGoalDistace()
 
         # Returning current state, reward and if the episode is done to the agent
-        return np.asarray(data_costmap.data), (self.goal_x - self.position.x, self.goal_y - self.position.y), (lin_vel, ang_vel), reward, done
+        return np.asarray(data_costmap.data), (self.goal_x - self.position.x, self.goal_y - self.position.y), (lin_vel, ang_vel), heading, reward, done
 
     # Reseting the simulation
     def reset(self):
@@ -207,7 +207,7 @@ class Env():
             print("gazebo/reset_simulation service call failed")
 
         # Getting current state
-        _, data_costmap, _ = self.getState()
+        _, data_costmap, heading = self.getState()
 
         # Creating a new goal
         self.goal_x, self.goal_y = self.respawn_goal.getPosition(True, delete=not self.initGoal)
@@ -216,4 +216,4 @@ class Env():
         self.initGoal = False
 
         # Returning current state
-        return np.asarray(data_costmap.data), (self.goal_x - self.position.x, self.goal_y - self.position.y), (0.0, 0.0)
+        return np.asarray(data_costmap.data), (self.goal_x - self.position.x, self.goal_y - self.position.y), (0.0, 0.0), heading

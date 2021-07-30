@@ -76,7 +76,7 @@ class DuelingDQN(tf.keras.Model):
         padding='same'
     )
     self.dense0 = layers.Dense(
-        units=2,
+        units=5,
         activation="relu",
         kernel_initializer=tf.keras.initializers.VarianceScaling(2.0),
         bias_initializer=tf.keras.initializers.Zeros(),
@@ -136,17 +136,17 @@ class DuelingDQN(tf.keras.Model):
     self.A = layers.Dense(num_actions)       
 
   @tf.function
-  def call(self, costmaps, goal_vel_vector):
+  def call(self, costmaps, goal_vel_hed_vector):
     x = self.conv1(costmaps)
     x = self.conv2(x)
     x = self.conv3(x)
-    y = self.dense0(goal_vel_vector)
+    y = self.dense0(goal_vel_hed_vector)
     y = self.dense1(y)
     y = self.reshape(y)
     o = tf.constant([1, 1, 8, 1], tf.int32)
     y = tf.tile(y, o)
-    # x = self.add([x, y])
-    x = self.conv4(y)
+    x = self.add([x, y])
+    x = self.conv4(x)
     x = self.conv5(x)
     x = self.conv6(x)
     x = self.flatten(x)
@@ -167,10 +167,10 @@ target_nn = None
 
 # The training step of the model, using both main and target models for double dqn
 @tf.function
-def train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done):
+def train_step(costmap, goal_vel_hed, action, reward, next_costmap, next_goal_vel_hed, done):
   # Select best next action using main_nn.
   # Calculating q-action values using the next-costmap and next-goal-vel inputs
-  next_qs_main = main_nn(next_costmap, next_goal_vel)
+  next_qs_main = main_nn(next_costmap, next_goal_vel_hed)
   # Getting the action with the maximum value
   next_qs_argmax = tf.argmax(next_qs_main, axis=-1)
   # Creating a mask, i.e. one hot encoding of the max-action index
@@ -178,7 +178,7 @@ def train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, d
 
   # Evaluate that best action using target_nn to know its Q-value.
   # Calculating q-action values using the next-costmap and next-goal-vel inputs
-  next_qs_target = target_nn(next_costmap, next_goal_vel)
+  next_qs_target = target_nn(next_costmap, next_goal_vel_hed)
   # Isolating the next-action value from the target model, but using the action index of the main model
   masked_next_qs = tf.reduce_sum(next_action_mask * next_qs_target, axis=-1)
 
@@ -188,7 +188,7 @@ def train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, d
   with tf.GradientTape() as tape:
     # Q-values for the current state.
     # Calculating q-action values using the costmap and goal-vel input
-    qs = main_nn(costmap, goal_vel)
+    qs = main_nn(costmap, goal_vel_hed)
     # Creating a mask, i.e. one hot encoding of the actual action chosen index
     action_mask = tf.one_hot(action, num_actions)
     # Isolating the the action value
@@ -229,7 +229,7 @@ class ReinforceAgent():
         self.load_model = load_model or stage_int > 1
         self.load_episode = load_episode
         self.action_size = action_size
-        self.episode_step = 6000
+        self.episode_step = 500
         self.discount_factor = discount
         self.learning_rate = 5 * (10 ** -4)
         self.epsilon = 1.0
@@ -283,11 +283,12 @@ class ReinforceAgent():
         return np.expand_dims(costmaps, axis=0)
 
     # Creates the goal-vel vector by creating a 4 dim vector
-    def preprocessGoalAndVelocities(self, goal, velocities):
+    def preprocessGoalAndVelocitiesAndHeading(self, goal, velocities, heading):
         goal_vector = np.asarray(goal)
-        # velocities_vector = np.asarray(velocities)
-        # goal_vel_vector = np.concatenate((goal_vector, velocities_vector), axis=None)
-        return np.expand_dims(goal_vector, axis=0)
+        velocities_vector = np.asarray(velocities)
+        heading_vector = np.asarray(heading)
+        goal_vel_hed_vector = np.concatenate((goal_vector, velocities_vector, heading_vector), axis=None)
+        return np.expand_dims(goal_vel_hed_vector, axis=0)
 
     # Creates the Double Dueling DQN model
     def buildModel(self):
@@ -298,24 +299,24 @@ class ReinforceAgent():
         self.target_model.set_weights(self.model.get_weights())
 
     # Calculates the next action using epsilon greedy approach, using the main model and a discounted over a preriod of time epsilon
-    def getAction(self, costmap, goal_vel):
+    def getAction(self, costmap, goal_vel_hed):
         if np.random.rand() <= self.epsilon:
             self.q_value = np.zeros(self.action_size)
             return random.randrange(self.action_size)
         else:
-            self.q_value = self.model(costmap, goal_vel)
+            self.q_value = self.model(costmap, goal_vel_hed)
             return np.argmax(self.q_value)
 
     # Appends to the memory buffer the current states and next states
-    def appendMemory(self, costmap, goal_vel, action, reward,  next_costmap, next_goal_vel, done):
+    def appendMemory(self, costmap, goal_vel_hed, action, reward,  next_costmap, next_goal_vel_hed, done):
         costmap = tf.convert_to_tensor(costmap, dtype=tf.float32)
-        goal_vel = tf.convert_to_tensor(goal_vel, dtype=tf.float32)
+        goal_vel_hed = tf.convert_to_tensor(goal_vel_hed, dtype=tf.float32)
         action = tf.convert_to_tensor(action, dtype=tf.int32)
         reward = tf.convert_to_tensor(reward, dtype=tf.float32)
         next_costmap = tf.convert_to_tensor(next_costmap, dtype=tf.float32)
-        next_goal_vel = tf.convert_to_tensor(next_goal_vel, dtype=tf.float32)
+        next_goal_vel_hed = tf.convert_to_tensor(next_goal_vel_hed, dtype=tf.float32)
         done = tf.convert_to_tensor(done, dtype=tf.float32)
-        self.memory.append((costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done))
+        self.memory.append((costmap, goal_vel_hed, action, reward, next_costmap, next_goal_vel_hed, done))
 
     # Initializes the main and target networks, and loads the model weights and last used training parameters if needed
     def initNetwork(self):
@@ -326,24 +327,24 @@ class ReinforceAgent():
 
         # Get a random sample for intialization
         costmap = self.memory[0][0]
-        goal_vel = self.memory[0][1]
+        goal_vel_hed = self.memory[0][1]
         action = self.memory[0][2]
         reward = self.memory[0][3]
         next_costmap = self.memory[0][4]
-        next_goal_vel = self.memory[0][5]
+        next_goal_vel_hed = self.memory[0][5]
         done = self.memory[0][6]
     
         main_nn = self.model
         target_nn = self.target_model
 
         # Run the sample through the network
-        train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done) 
+        train_step(costmap, goal_vel_hed, action, reward, next_costmap, next_goal_vel_hed, done) 
 
         main_nn = self.target_model
         target_nn = self.model
 
         # Run the sample through the network
-        train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done)             
+        train_step(costmap, goal_vel_hed, action, reward, next_costmap, next_goal_vel_hed, done)             
 
         # Load saved weights if needed, either last of previous stage or of a predetermined episode of the current stage
         if self.load_model and self.load_episode > 0:
@@ -389,18 +390,18 @@ class ReinforceAgent():
         for i in range(self.batch_size):
             # Get next sample
             costmap = mini_batch[i][0]
-            goal_vel = mini_batch[i][1]
+            goal_vel_hed = mini_batch[i][1]
             action = mini_batch[i][2]
             reward = mini_batch[i][3]
             next_costmap = mini_batch[i][4]
-            next_goal_vel = mini_batch[i][5]
+            next_goal_vel_hed = mini_batch[i][5]
             done = mini_batch[i][6]
      
             main_nn = self.model
             target_nn = self.target_model
 
             # Run forward and back propagation
-            loss = train_step(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done) 
+            loss = train_step(costmap, goal_vel_hed, action, reward, next_costmap, next_goal_vel_hed, done) 
             losses.append(loss)
         
         # Return the mean loss of this batch
@@ -426,13 +427,13 @@ class Agent():
         self.model = self.r_a.buildModel()
 
     # Initializes the model and loads the model weights
-    def initNetwork(self, costmap, goal_dist, velocities):
+    def initNetwork(self, costmap, goal_dist, velocities, heading):
         global main_nn
         global target_nn
 
         # Generates data for network intialization
         costmap = self.r_a.preprocessCostmap(costmap)
-        goal_vel = self.r_a.preprocessGoalAndVelocities(goal_dist, velocities)
+        goal_vel_hed = self.r_a.preprocessGoalAndVelocitiesAndHeading(goal_dist, velocities, heading)
 
         rospy.loginfo('Initializing network...')
 
@@ -440,7 +441,7 @@ class Agent():
         target_nn = self.model
 
         # Run the sample through the network
-        train_step(costmap, goal_vel, 0, 0, costmap, goal_vel, False)            
+        train_step(costmap, goal_vel_hed, 0, 0, costmap, goal_vel_hed, False)            
 
         rospy.loginfo('Loading last saved model...')
         # Loading last saved model weights of the stage
@@ -450,10 +451,10 @@ class Agent():
         self.model.set_weights(weights)   
 
     # Calculating next action using stage and the pretrained model, no exploration here
-    def getAction(self, costmap, goal_dist, velocities):
+    def getAction(self, costmap, goal_dist, velocities, heading):
         costmap = self.r_a.preprocessCostmap(costmap)
-        goal_vel = self.r_a.preprocessGoalAndVelocities(goal_dist, velocities)        
-        self.q_value = self.model(costmap, goal_vel)
+        goal_vel_hed = self.r_a.preprocessGoalAndVelocitiesAndHeading(goal_dist, velocities, heading)        
+        self.q_value = self.model(costmap, goal_vel_hed)
         return np.argmax(self.q_value)
 
 
@@ -562,24 +563,24 @@ def train():
     for e in range(agent.load_episode + 1, EPISODES):
         done = False
         # Reseting the enviornment and creating a new goal, lastly getting the current agent state
-        costmap, goal_dist, velocities = env.reset()
+        costmap, goal_dist, velocities, heading = env.reset()
         costmap = agent.preprocessCostmap(costmap)
-        goal_vel = agent.preprocessGoalAndVelocities(goal_dist, velocities)
+        goal_vel_hed = agent.preprocessGoalAndVelocitiesAndHeading(goal_dist, velocities, heading)
         score = 0
         # The episode training loop
         for t in range(agent.episode_step): 
             # Calculating next action using epsilon greedy           
-            action = agent.getAction(costmap, goal_vel)
+            action = agent.getAction(costmap, goal_vel_hed)
 
             # Sending action to the enviornment
-            next_costmap, next_goal_dist, next_velocities, reward, done = env.step(action)
+            next_costmap, next_goal_dist, next_velocities, next_heading, reward, done = env.step(action)
 
             # Calculating the actual agent state from the state returned by the enviornment
             next_costmap = agent.preprocessCostmap(next_costmap)
-            next_goal_vel = agent.preprocessGoalAndVelocities(next_goal_dist, next_velocities)
+            next_goal_vel_hed = agent.preprocessGoalAndVelocitiesAndHeading(next_goal_dist, next_velocities, next_heading)
 
             # Appending to the replay buffer
-            agent.appendMemory(costmap, goal_vel, action, reward, next_costmap, next_goal_vel, done)
+            agent.appendMemory(costmap, goal_vel_hed, action, reward, next_costmap, next_goal_vel_hed, done)
 
             # Training the model after memory is large enough
             if len(agent.memory) >= agent.train_start:                
@@ -587,7 +588,7 @@ def train():
                                                   
             # Appending reward to current score, switching between current and next states                                                  
             score += reward
-            costmap, goal_vel = next_costmap, next_goal_vel
+            costmap, goal_vel_hed = next_costmap, next_goal_vel_hed
             get_action.data = [action, score, reward]
             pub_get_action.publish(get_action)
 
@@ -664,24 +665,27 @@ def run():
     # Creating the enviornment
     env = Env(action_size)
     # Reseting the enviornment
-    costmap, goal_dist, velocities = env.reset()
+    costmap, goal_dist, velocities, heading = env.reset()
     # Initializing model and loading weights
-    agent.initNetwork(costmap, goal_dist, velocities)
+    agent.initNetwork(costmap, goal_dist, velocities, heading)
     
     done = False
+    rate = rospy.Rate(4)
     rospy.loginfo("Running...")
     # Running local goal planner loop
     while not rospy.is_shutdown():
         # Getting next action with no exploration
-        action = agent.getAction(costmap, goal_dist, velocities)
+        action = agent.getAction(costmap, goal_dist, velocities, heading)
         # Acting on the enviornment
-        costmap, goal_dist, velocities, _, done = env.step(action)
+        costmap, goal_dist, velocities, heading, _, done = env.step(action)
 
         # If done, due to goal ro colission, start over
         if done:
             rospy.loginfo("DONE!")
             done = False
             costmap, goal_dist, velocities = env.reset()
+        
+        rate.sleep()
 
 # A function to prepare a global plan, using an agent, the enviornment and a modulo to use when deciding how many local goals of the global plan to use
 def prepareGlobalPlan(agent, env, plan_modulo_param):
@@ -753,7 +757,7 @@ def run_with_global_planner():
     # Creating the enviornment
     env = Env(action_size)
     # Reseting the enviornment
-    costmap, _, velocities = env.reset()    
+    costmap, _, velocities, heading = env.reset()    
     # Preparing a global plan
     plan = prepareGlobalPlan(agent, env, plan_modulo_param)
     # Taking the first local goal
@@ -763,9 +767,10 @@ def run_with_global_planner():
     # Calculating next local goal distance      
     goal_dist = get_local_goal_dist(env, local_goal_x, local_goal_y)    
     # Initialzies the agent model
-    agent.initNetwork(costmap, goal_dist, velocities)
+    agent.initNetwork(costmap, goal_dist, velocities, heading)
     
     done = False
+    rate = rospy.Rate(4)
     curr_index = -1
     rospy.loginfo("Running...")
     # Running the global plan
@@ -779,16 +784,18 @@ def run_with_global_planner():
         # Calculating local goal distance       
         goal_dist = get_local_goal_dist(env, local_goal_x, local_goal_y)
         # Getting next action
-        action = agent.getAction(costmap, goal_dist, velocities)
+        action = agent.getAction(costmap, goal_dist, velocities, heading)
         # Acting on the enviornment
-        costmap, _, velocities, _, done = env.step(action)
+        costmap, _, velocities, heading, _, done = env.step(action)
 
         # If curr_index==-1 global goal reached
         if curr_index == -1:
             rospy.loginfo("DONE!")
             done = False
             costmap, _, velocities = env.reset()
-            plan = prepareGlobalPlan(agent, env, plan_modulo_param)         
+            plan = prepareGlobalPlan(agent, env, plan_modulo_param) 
+
+        rate.sleep()        
 
 
 # The main function
