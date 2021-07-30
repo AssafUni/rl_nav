@@ -683,7 +683,7 @@ def run():
         if done:
             rospy.loginfo("DONE!")
             done = False
-            costmap, goal_dist, velocities = env.reset()
+            costmap, goal_dist, velocities, heading = env.reset()
         
         rate.sleep()
 
@@ -792,7 +792,7 @@ def run_with_global_planner():
         if curr_index == -1:
             rospy.loginfo("DONE!")
             done = False
-            costmap, _, velocities = env.reset()
+            costmap, _, velocities, heading = env.reset()
             plan = prepareGlobalPlan(agent, env, plan_modulo_param) 
 
         rate.sleep()        
