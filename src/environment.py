@@ -143,7 +143,7 @@ class Env():
             self.pub_cmd_vel.publish(Twist())
             self.goal_x, self.goal_y = self.respawn_goal.getPosition(True, delete=True)
             self.goal_distance = self.getGoalDistace()
-            return rg + rc + rs, True
+            return rg + rc + rs, False
         
         # Modified reward function than the paper using the original turtlebot3 code,
         # this function aids the agent because it adds immediate rewards if the robot is in 

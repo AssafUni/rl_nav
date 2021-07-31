@@ -1,10 +1,10 @@
 # Robot Navigation with Map-Based Deep Reinforcement Learning
 https://arxiv.org/pdf/2002.04349.pdf
 
-An implementation for the paper with a modified reward function and reduced number of actions.
+An implementation for the paper with a modified reward function, reduced number of actions plus heading data added to the goal velocities vector.
 Forked from 
 https://github.com/ROBOTIS-GIT/turtlebot3_machine_learning.git
-Added Dobule Dueling DQN with the aid of 
+Added Double Dueling DQN with the aid of 
 https://markelsanz14.medium.com/introduction-to-reinforcement-learning-part-4-double-dqn-and-dueling-dqn-b349c9a61ea1
 
 
