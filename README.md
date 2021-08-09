@@ -137,3 +137,10 @@ turtlebot3_dqn_stage_4_run_global.launch
     2. map4- The map for stage 4.
 4. models directory- This directory includes some models for the enviornment.
 5. save_model directory- This is where the weights of the model will be saved for each 10 episodes.
+
+# Troubleshooting
+
+1. If you can't run the dqn agent, try adding run permissions(chmod +x in linux) to the turtlebot3_dqn.py.
+2. Problems regarding missing models can be resolved by cloning turtlebot simulations repo and running catkin_make.
+3. Some problems were noticed while transferring the trained model to the local and global planners where the time difference between each step(in the training) was big. This occured at later stages after a long training sessions. If you encounter such problems, try using weights from earlier stages.
+

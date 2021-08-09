@@ -14,12 +14,16 @@ from std_msgs.msg import Float32MultiArray
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav_msgs.srv import GetPlan, GetPlanRequest
 from environment import Env
-#import os
-#os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+# ------------ Setting No Verbose Logging- To see all warnings and other tensorflow logs, comment until *** -------------------
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 import tensorflow as tf
-#tf.get_logger().setLevel('INFO')
-#import logging
-#tf.get_logger().setLevel(logging.ERROR)
+# **************************************
+# ------------ Setting No Verbose Logging- To see all warnings and other tensorflow logs, comment until *** -------------------
+tf.get_logger().setLevel('INFO')
+import logging
+tf.get_logger().setLevel(logging.ERROR)
+# **************************************
 from keras.models import Sequential
 from keras.optimizers import RMSprop
 from keras.layers import Dense, Dropout, Activation
@@ -247,8 +251,12 @@ class ReinforceAgent():
 
     # A function that takes a costmap, adds it to a queue, extracts costmaps
     # from the history and creates the input for the model which includes three costmaps for a 3-markov model
-    def preprocessCostmap(self, costmap):
+    def preprocessCostmap(self, costmap, reset_history=False):
+        if reset_history:
+            self.costmapQueue = deque(maxlen=self.costmapStep * 3 + 1)
+
         self.costmapQueue.append(costmap)
+
         if len(self.costmapQueue) > self.costmapStep * 3:
             newQueue = deque(maxlen=10)            
             costmap_a = self.costmapQueue.pop()
@@ -271,7 +279,7 @@ class ReinforceAgent():
             costmap_a = costmap
             costmap_b = costmap
             costmap_c = costmap
-  
+        
         costmap_a = np.asarray(costmap_a).reshape((60, 60))
         costmap_b = np.asarray(costmap_b).reshape((60, 60))
         costmap_c = np.asarray(costmap_c).reshape((60, 60))
@@ -366,6 +374,7 @@ class ReinforceAgent():
             rospy.loginfo('Loading last saved model...')
             # Load last weights
             path = self.lastDirPath + "_last.weights"
+            rospy.loginfo(path)
             with open(path, 'rb') as file:
                 weights = pickle.load(file)   
             self.model.set_weights(weights)   
@@ -426,14 +435,16 @@ class Agent():
         # Build model
         self.model = self.r_a.buildModel()
 
+    def preprocessCostmap(self, costmap, reset_history=False):
+        return self.r_a.preprocessCostmap(costmap, reset_history)
+
+    def preprocessGoalAndVelocitiesAndHeading(self, goal_dist, velocities, heading):
+        return self.r_a.preprocessGoalAndVelocitiesAndHeading(goal_dist, velocities, heading)        
+
     # Initializes the model and loads the model weights
-    def initNetwork(self, costmap, goal_dist, velocities, heading):
+    def initNetwork(self, costmap, goal_vel_hed):
         global main_nn
         global target_nn
-
-        # Generates data for network intialization
-        costmap = self.r_a.preprocessCostmap(costmap)
-        goal_vel_hed = self.r_a.preprocessGoalAndVelocitiesAndHeading(goal_dist, velocities, heading)
 
         rospy.loginfo('Initializing network...')
 
@@ -446,17 +457,15 @@ class Agent():
         rospy.loginfo('Loading last saved model...')
         # Loading last saved model weights of the stage
         path = self.dirPath + "_last.weights"
+        rospy.loginfo(path)
         with open(path, 'rb') as file:
             weights = pickle.load(file)   
         self.model.set_weights(weights)   
 
     # Calculating next action using stage and the pretrained model, no exploration here
-    def getAction(self, costmap, goal_dist, velocities, heading):
-        costmap = self.r_a.preprocessCostmap(costmap)
-        goal_vel_hed = self.r_a.preprocessGoalAndVelocitiesAndHeading(goal_dist, velocities, heading)        
+    def getAction(self, costmap, goal_vel_hed):      
         self.q_value = self.model(costmap, goal_vel_hed)
         return np.argmax(self.q_value)
-
 
     # Setting inital pose of the robot, needed for global planning
     def set_inital_pose(self, stage):
@@ -564,7 +573,7 @@ def train():
         done = False
         # Reseting the enviornment and creating a new goal, lastly getting the current agent state
         costmap, goal_dist, velocities, heading = env.reset()
-        costmap = agent.preprocessCostmap(costmap)
+        costmap = agent.preprocessCostmap(costmap, reset_history=True)
         goal_vel_hed = agent.preprocessGoalAndVelocitiesAndHeading(goal_dist, velocities, heading)
         score = 0
         # The episode training loop
@@ -666,8 +675,10 @@ def run():
     env = Env(action_size)
     # Reseting the enviornment
     costmap, goal_dist, velocities, heading = env.reset()
+    costmap = agent.preprocessCostmap(costmap, reset_history=True)
+    goal_vel_hed = agent.preprocessGoalAndVelocitiesAndHeading(goal_dist, velocities, heading)    
     # Initializing model and loading weights
-    agent.initNetwork(costmap, goal_dist, velocities, heading)
+    agent.initNetwork(costmap, goal_vel_hed)
     
     done = False
     rate = rospy.Rate(4)
@@ -675,16 +686,19 @@ def run():
     # Running local goal planner loop
     while not rospy.is_shutdown():
         # Getting next action with no exploration
-        action = agent.getAction(costmap, goal_dist, velocities, heading)
+        action = agent.getAction(costmap, goal_vel_hed)
         # Acting on the enviornment
         costmap, goal_dist, velocities, heading, _, done = env.step(action)
+        costmap = agent.preprocessCostmap(costmap)
+        goal_vel_hed = agent.preprocessGoalAndVelocitiesAndHeading(goal_dist, velocities, heading)          
 
         # If done, due to goal ro colission, start over
         if done:
             rospy.loginfo("DONE!")
             done = False
             costmap, goal_dist, velocities, heading = env.reset()
-        
+            costmap = agent.preprocessCostmap(costmap, reset_history=True)
+            goal_vel_hed = agent.preprocessGoalAndVelocitiesAndHeading(goal_dist, velocities, heading)                       
         rate.sleep()
 
 # A function to prepare a global plan, using an agent, the enviornment and a modulo to use when deciding how many local goals of the global plan to use
@@ -766,8 +780,10 @@ def run_with_global_planner():
     local_goal_x, local_goal_y = next_goal.pose.position.x, next_goal.pose.position.y  
     # Calculating next local goal distance      
     goal_dist = get_local_goal_dist(env, local_goal_x, local_goal_y)    
+    costmap = agent.preprocessCostmap(costmap, reset_history=True)
+    goal_vel_hed = agent.preprocessGoalAndVelocitiesAndHeading(goal_dist, velocities, heading)    
     # Initialzies the agent model
-    agent.initNetwork(costmap, goal_dist, velocities, heading)
+    agent.initNetwork(costmap, goal_vel_hed)
     
     done = False
     rate = rospy.Rate(4)
@@ -783,8 +799,10 @@ def run_with_global_planner():
         local_goal_x, local_goal_y = next_goal.pose.position.x, next_goal.pose.position.y 
         # Calculating local goal distance       
         goal_dist = get_local_goal_dist(env, local_goal_x, local_goal_y)
+        costmap = agent.preprocessCostmap(costmap)
+        goal_vel_hed = agent.preprocessGoalAndVelocitiesAndHeading(goal_dist, velocities, heading)          
         # Getting next action
-        action = agent.getAction(costmap, goal_dist, velocities, heading)
+        action = agent.getAction(costmap, goal_vel_hed)
         # Acting on the enviornment
         costmap, _, velocities, heading, _, done = env.step(action)
 
@@ -793,6 +811,7 @@ def run_with_global_planner():
             rospy.loginfo("DONE!")
             done = False
             costmap, _, velocities, heading = env.reset()
+            costmap = agent.preprocessCostmap(costmap, reset_history=True)
             plan = prepareGlobalPlan(agent, env, plan_modulo_param) 
 
         rate.sleep()        
