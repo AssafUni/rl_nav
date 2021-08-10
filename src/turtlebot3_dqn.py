@@ -234,11 +234,11 @@ class ReinforceAgent():
         if stage_int == 1:
             self.total_episodes = 250
         elif stage_int == 2:
-            self.total_episodes = 20000
+            self.total_episodes = 9000
         elif stage_int == 3:
-            self.total_episodes = 40000
+            self.total_episodes = 12000
         elif stage_int == 4:
-            self.total_episodes = 80000 
+            self.total_episodes = 14000 
         self.episode_step = 6000
         self.discount_factor = discount
         self.learning_rate = 5 * (10 ** -4)
