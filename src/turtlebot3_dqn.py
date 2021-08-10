@@ -34,8 +34,6 @@ import pickle
 ### determine which stage to run, whether to load a saved model and more. See
 ### README for more info.
 
-# The total number of training episodes
-EPISODES = 3000
 # The number of actions available to the agent, this will translate to angular velocities. See envrionment in getState.
 # Modified from the paper
 num_actions = 5
@@ -233,6 +231,14 @@ class ReinforceAgent():
         self.load_model = load_model or stage_int > 1
         self.load_episode = load_episode
         self.action_size = action_size
+        if stage_int == 1:
+            self.total_episodes = 250
+        elif stage_int == 2:
+            self.total_episodes = 20000
+        elif stage_int == 3:
+            self.total_episodes = 40000
+        elif stage_int == 4:
+            self.total_episodes = 80000 
         self.episode_step = 6000
         self.discount_factor = discount
         self.learning_rate = 5 * (10 ** -4)
@@ -569,7 +575,7 @@ def train():
     start_time = time.time()
 
     # The main training loop
-    for e in range(agent.load_episode + 1, EPISODES):
+    for e in range(agent.load_episode + 1, agent.total_episodes):
         done = False
         # Reseting the enviornment and creating a new goal, lastly getting the current agent state
         costmap, goal_dist, velocities, heading = env.reset()
@@ -636,8 +642,8 @@ def train():
                 m, s = divmod(int(time.time() - start_time), 60)
                 h, m = divmod(m, 60)
 
-                rospy.loginfo('Loss: %f, Ep: %d Step: %d score: %.2f memory: %d epsilon: %.2f time: %d:%02d:%02d',
-                              loss, e, t, score, len(agent.memory), agent.epsilon, h, m, s)                
+                rospy.loginfo('Loss: %f, Ep: %d/%d Step: %d score: %.2f memory: %d epsilon: %.2f time: %d:%02d:%02d',
+                              loss, e, agent.total_episodes, t, score, len(agent.memory), agent.epsilon, h, m, s)                
 
             # If episode is done, updates target network, saves current training parameters, logs current progress
             if done:
@@ -650,8 +656,8 @@ def train():
                 m, s = divmod(int(time.time() - start_time), 60)
                 h, m = divmod(m, 60)
 
-                rospy.loginfo('Loss: %f, Ep: %d score: %.2f memory: %d epsilon: %.2f time: %d:%02d:%02d',
-                              loss, e, score, len(agent.memory), agent.epsilon, h, m, s)
+                rospy.loginfo('Loss: %f, Ep: %d/%d score: %.2f memory: %d epsilon: %.2f time: %d:%02d:%02d',
+                              loss, e, agent.total_episodes, score, len(agent.memory), agent.epsilon, h, m, s)
                 param_keys = ['epsilon']
                 param_values = [agent.epsilon]
                 param_dictionary = dict(zip(param_keys, param_values))
