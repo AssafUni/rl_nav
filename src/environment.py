@@ -49,6 +49,8 @@ class Env():
         # Used to create and delete the visual goal
         self.respawn_goal = Respawn()
 
+        self.move_rate = rospy.Rate(4)
+
     # Get robot current position
     def getPosition(self):
         return self.position.x, self.position.y
@@ -168,22 +170,20 @@ class Env():
         lin_vel = 0.15
         ang_vel = ((self.action_size - 1)/2 - action) * max_angular_vel * 0.5
 
-        #rate = rospy.Rate(4)
-
         # Sending action to actual enviornment
         vel_cmd = Twist()
         vel_cmd.linear.x = lin_vel
         vel_cmd.angular.z = ang_vel
         self.pub_cmd_vel.publish(vel_cmd)
 
-        # rate.sleep()
+        self.move_rate.sleep()
 
-        # vel_cmd = Twist()
-        # vel_cmd.linear.x = 0
-        # vel_cmd.angular.z = 0
-        # self.pub_cmd_vel.publish(vel_cmd)
+        vel_cmd = Twist()
+        vel_cmd.linear.x = 0
+        vel_cmd.angular.z = 0
+        self.pub_cmd_vel.publish(vel_cmd)
 
-        # rate.sleep()     
+        self.move_rate.sleep()     
 
         # Getting current state
         data_scan, data_costmap, heading = self.getState()        
