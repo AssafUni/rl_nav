@@ -162,6 +162,12 @@ class Env():
         rg = epsilon * r
         
         return rg + rc + rs, False
+
+    def pause(self):
+        vel_cmd = Twist()
+        vel_cmd.linear.x = 0
+        vel_cmd.angular.z = 0
+        self.pub_cmd_vel.publish(vel_cmd)
              
     # Next step of the agent
     def step(self, action):
@@ -176,14 +182,14 @@ class Env():
         vel_cmd.angular.z = ang_vel
         self.pub_cmd_vel.publish(vel_cmd)
 
-        self.move_rate.sleep()
+        # self.move_rate.sleep()
 
-        vel_cmd = Twist()
-        vel_cmd.linear.x = 0
-        vel_cmd.angular.z = 0
-        self.pub_cmd_vel.publish(vel_cmd)
+        # vel_cmd = Twist()
+        # vel_cmd.linear.x = 0
+        # vel_cmd.angular.z = 0
+        # self.pub_cmd_vel.publish(vel_cmd)
 
-        self.move_rate.sleep()     
+        # self.move_rate.sleep()     
 
         # Getting current state
         data_scan, data_costmap, heading = self.getState()        

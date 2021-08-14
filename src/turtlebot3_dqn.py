@@ -240,13 +240,14 @@ class ReinforceAgent():
         elif stage_int == 4:
             self.total_episodes = 14000 
         self.episode_step = 6000
+        self.max_epochs_per_training = 100
         self.discount_factor = discount
         self.learning_rate = 5 * (10 ** -4)
         self.epsilon = 1.0
         self.epsilon_decay = 0.99
         self.epsilon_min = 0.05
-        self.batch_size = 64
-        self.train_start = 64
+        self.batch_size = 1024
+        self.train_start = 1024
         self.memory = deque(maxlen=200000)
         self.costmapStep = 3
         self.costmapQueue = deque(maxlen=self.costmapStep * 3 + 1)
@@ -393,34 +394,47 @@ class ReinforceAgent():
 		
 	    self.load_model = False
 
-    # Extracts a random batch from the replay buffer and runs the training loop, returns the mean of the losses of this batch
-    def trainModel(self):
+    # Extracts a random batches from the replay buffer and runs the training loop, returns the mean of the losses of this last batch
+    def trainModel(self, episode, step, score, start_time):
         global main_nn
         global target_nn
-        # Generate a random batch
-        mini_batch = random.sample(self.memory, self.batch_size)
 
-        losses = []
+        loss = 100
+        counter = self.max_epochs_per_training
+        while loss > 2 and counter > 0:
+            # Generate a random batch
+            mini_batch = random.sample(self.memory, self.batch_size)
 
-        for i in range(self.batch_size):
-            # Get next sample
-            costmap = mini_batch[i][0]
-            goal_vel_hed = mini_batch[i][1]
-            action = mini_batch[i][2]
-            reward = mini_batch[i][3]
-            next_costmap = mini_batch[i][4]
-            next_goal_vel_hed = mini_batch[i][5]
-            done = mini_batch[i][6]
-     
-            main_nn = self.model
-            target_nn = self.target_model
+            losses = []
 
-            # Run forward and back propagation
-            loss = train_step(costmap, goal_vel_hed, action, reward, next_costmap, next_goal_vel_hed, done) 
-            losses.append(loss)
+            for i in range(self.batch_size):
+                # Get next sample
+                costmap = mini_batch[i][0]
+                goal_vel_hed = mini_batch[i][1]
+                action = mini_batch[i][2]
+                reward = mini_batch[i][3]
+                next_costmap = mini_batch[i][4]
+                next_goal_vel_hed = mini_batch[i][5]
+                done = mini_batch[i][6]
         
-        # Return the mean loss of this batch
-        return np.mean(losses)
+                main_nn = self.model
+                target_nn = self.target_model
+
+                # Run forward and back propagation
+                loss = train_step(costmap, goal_vel_hed, action, reward, next_costmap, next_goal_vel_hed, done) 
+                losses.append(loss)
+            
+            # update current mean loss
+            counter = counter - 1
+            loss = np.mean(losses)
+
+            minute, second = divmod(int(time.time() - start_time), 60)
+            hour, minute = divmod(minute, 60)
+            rospy.loginfo('Training in progress => Loss: %.4f Epoch: %d/%d Ep: %d/%d Step: %d score: %.2f memory: %d epsilon: %.2f time: %d:%02d:%02d',
+                            loss, self.max_epochs_per_training - counter, self.max_epochs_per_training, episode, self.total_episodes, step, score, len(self.memory), self.epsilon, hour, minute, second)  
+        
+        # Return the mean loss of the last batch
+        return loss
 
 # The agent that uses pre-trained weights and runs the agent with no exploration
 class Agent():
@@ -574,6 +588,8 @@ def train():
     global_step = 0
     start_time = time.time()
 
+    rate = rospy.Rate(4)
+
     # The main training loop
     for e in range(agent.load_episode + 1, agent.total_episodes):
         done = False
@@ -588,18 +604,26 @@ def train():
             action = agent.getAction(costmap, goal_vel_hed)
 
             # Sending action to the enviornment
-            next_costmap, next_goal_dist, next_velocities, next_heading, reward, done = env.step(action)
+            next_costmap_raw, next_goal_dist, next_velocities, next_heading, reward, done = env.step(action)
+
+            rate.sleep()
 
             # Calculating the actual agent state from the state returned by the enviornment
-            next_costmap = agent.preprocessCostmap(next_costmap)
+            next_costmap = agent.preprocessCostmap(next_costmap_raw)
             next_goal_vel_hed = agent.preprocessGoalAndVelocitiesAndHeading(next_goal_dist, next_velocities, next_heading)
 
             # Appending to the replay buffer
             agent.appendMemory(costmap, goal_vel_hed, action, reward, next_costmap, next_goal_vel_hed, done)
 
-            # Training the model after memory is large enough
-            if len(agent.memory) >= agent.train_start:                
-                loss = agent.trainModel()                  
+            # Training the model after memory is large enough and in specific intervals
+            if (done or (t != 0 and t % agent.batch_size == 0)) and len(agent.memory) >= agent.train_start:  
+                rospy.loginfo('Pausing enviornment(Robot stopped but obstacales still move and costmap history is reset)...')
+                env.pause()  
+                rospy.loginfo('Starting training...')            
+                loss = agent.trainModel(e, t, score, start_time) 
+                next_costmap = agent.preprocessCostmap(next_costmap_raw, reset_history=True)
+                next_goal_vel_hed = agent.preprocessGoalAndVelocitiesAndHeading(next_goal_dist, (0.0, 0.0), next_heading)
+                rospy.loginfo('Training ended...')                     
                                                   
             # Appending reward to current score, switching between current and next states                                                  
             score += reward
@@ -642,7 +666,8 @@ def train():
                 m, s = divmod(int(time.time() - start_time), 60)
                 h, m = divmod(m, 60)
 
-                rospy.loginfo('Loss: %f, Ep: %d/%d Step: %d score: %.2f memory: %d epsilon: %.2f time: %d:%02d:%02d',
+                rospy.loginfo('Goal dist: %.4f %.4f', next_goal_dist[0], next_goal_dist[1])
+                rospy.loginfo('Sampling in progress => Loss: %.4f Ep: %d/%d Step: %d score: %.2f memory: %d epsilon: %.2f time: %d:%02d:%02d',
                               loss, e, agent.total_episodes, t, score, len(agent.memory), agent.epsilon, h, m, s)                
 
             # If episode is done, updates target network, saves current training parameters, logs current progress
@@ -656,7 +681,7 @@ def train():
                 m, s = divmod(int(time.time() - start_time), 60)
                 h, m = divmod(m, 60)
 
-                rospy.loginfo('Loss: %f, Ep: %d/%d score: %.2f memory: %d epsilon: %.2f time: %d:%02d:%02d',
+                rospy.loginfo('Episode ended => Loss: %.4f Ep: %d/%d score: %.2f memory: %d epsilon: %.2f time: %d:%02d:%02d',
                               loss, e, agent.total_episodes, score, len(agent.memory), agent.epsilon, h, m, s)
                 param_keys = ['epsilon']
                 param_values = [agent.epsilon]
