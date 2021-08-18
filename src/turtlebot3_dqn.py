@@ -232,7 +232,7 @@ class ReinforceAgent():
         self.load_episode = load_episode
         self.action_size = action_size
         if stage_int == 1:
-            self.total_episodes = 300
+            self.total_episodes = 80
         elif stage_int == 2:
             self.total_episodes = 9000
         elif stage_int == 3:
